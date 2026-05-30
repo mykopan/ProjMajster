@@ -3,7 +3,11 @@
 module Main (main) where
 
 import Control.Monad (unless)
+import Control.Exception (catch)
 import qualified Data.Map.Strict as Map
+import Development.Shake
+import Development.Shake.FilePath
+import qualified System.Directory as Directory
 
 import ProjMajster
 
@@ -12,6 +16,7 @@ main = do
   testDslBuildsProject
   testPlanningResolvesProject
   testGraphBuildsCompileAndLinkSteps
+  testShakeSourceDiscovery
   testDuplicateTargetsFail
   testUnknownBuildStyleFails
 
@@ -177,6 +182,56 @@ testGraphBuildsCompileAndLinkSteps = do
     , transformAction rule == CustomAction "json-to-c"
     ]
 
+testShakeSourceDiscovery :: IO ()
+testShakeSourceDiscovery = do
+  let root = "test" </> "tmp" </> "source-discovery"
+  Directory.removePathForcibly root `catchIO` \_ -> pure ()
+  Directory.createDirectoryIfMissing True (root </> "src" </> "foo")
+  writeFile (root </> "src" </> "foo" </> "a.c") ""
+  writeFile (root </> "src" </> "foo" </> "b.c") ""
+  writeFile (root </> "src" </> "foo" </> "ignored.txt") ""
+
+  let context = releaseContext
+        { contextBuildDirs = BuildDirs
+            { buildRootDir = root </> "_build"
+            , buildInterDir = root </> "_build" </> "inter"
+            , buildProductDir = root </> "_build" </> "product"
+            , buildDistDir = root </> "_build" </> "dist"
+            }
+        }
+  let graph = BuildGraph
+        { graphSources =
+            [ SourceDiscovery
+                { sourceDiscoveryOwner = TargetName "foo"
+                , sourceDiscoveryGlob = SourceGlob
+                    { sourceGlobBaseDir = root </> "src" </> "foo"
+                    , sourceGlobPattern = "*.c"
+                    , sourceGlobLanguage = C
+                    }
+                }
+            ]
+        , graphTargets = []
+        }
+
+  let manifests = sourceManifests context graph
+
+  shake shakeOptions
+    { shakeFiles = root </> "_shake"
+    , shakeVerbosity = Silent
+    } $ do
+      sourceDiscoveryRules context graph
+      want (map sourceManifestPath manifests)
+
+  manifest <- case manifests of
+    [single] -> pure single
+    xs -> fail $ "expected one manifest, got " <> show (length xs)
+
+  content <- lines <$> readFile (sourceManifestPath manifest)
+
+  assertEqual "shake source discovery manifest"
+    ["a.c", "b.c"]
+    content
+
 testDuplicateTargetsFail :: IO ()
 testDuplicateTargetsFail =
   assertEqual "duplicate target error"
@@ -273,3 +328,6 @@ assertRight :: Show e => String -> Either e a -> IO a
 assertRight _ (Right value) = pure value
 assertRight label (Left err) =
   fail $ label <> ": expected Right, got Left " <> show err
+
+catchIO :: IO a -> (IOError -> IO a) -> IO a
+catchIO = catch
