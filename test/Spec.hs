@@ -11,6 +11,7 @@ main :: IO ()
 main = do
   testDslBuildsProject
   testPlanningResolvesProject
+  testGraphBuildsCompileAndLinkSteps
   testDuplicateTargetsFail
   testUnknownBuildStyleFails
 
@@ -126,6 +127,68 @@ testPlanningResolvesProject = do
     (resolvedTargetDeps app)
     (resolvedTargetDeps debugApp)
 
+testGraphBuildsCompileAndLinkSteps :: IO ()
+testGraphBuildsCompileAndLinkSteps = do
+  plan <- assertRight "resolve release project" $
+    resolveProject releaseContext demoProject
+
+  let graph = buildGraph plan
+
+  assertEqual "graph action sequence"
+    [ DiscoverSources
+    , DiscoverSources
+    , DiscoverSources
+    , Compile C
+    , Compile Cxx
+    , Compile C
+    , Link
+    , Link
+    ]
+    (map buildStepAction (graphSteps graph))
+
+  assertEqual "graph file roles"
+    [ SourceFile
+    , SourceFile
+    , ObjectFile
+    , ObjectFile
+    , SharedObject
+    , SourceFile
+    , ObjectFile
+    , ProgramBinary
+    ]
+    (map fileRefRole (graphFiles graph))
+
+  assertEqual "source glob discovery count"
+    3
+    (length
+      [ ()
+      | step <- graphSteps graph
+      , DiscoverSourceGlob _ <- buildStepDiscovered step
+      ])
+
+  assertEqual "makefile deps discovery count"
+    3
+    (length
+      [ ()
+      | step <- graphSteps graph
+      , DiscoverMakefileDeps _ <- buildStepDiscovered step
+      ])
+
+  appLinkStep <- case
+      [ step
+      | step <- graphSteps graph
+      , buildStepAction step == Link
+      , any ((Just (TargetName "app") ==) . fileRefOwner)
+          (buildStepOutputs step)
+      ] of
+    [step] -> pure step
+    steps -> fail $
+      "expected exactly one app link step, got " <> show (length steps)
+
+  assertEqual "app link inputs include internal library output"
+    [ObjectFile, SharedObject]
+    (map fileRefRole (buildStepInputs appLinkStep))
+
 testDuplicateTargetsFail :: IO ()
 testDuplicateTargetsFail =
   assertEqual "duplicate target error"
@@ -178,6 +241,12 @@ releaseContext = BuildContext
   { buildPlatform = linuxX86_64
   , targetPlatform = linuxX86_64
   , contextBuildStyle = release
+  , contextBuildDirs = BuildDirs
+      { buildRootDir = "_build/linux-x86_64/release"
+      , buildInterDir = "_build/linux-x86_64/release/inter"
+      , buildProductDir = "_build/linux-x86_64/release/product"
+      , buildDistDir = "_build/linux-x86_64/release/dist"
+      }
   }
 
 debugContext :: BuildContext

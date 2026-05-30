@@ -43,6 +43,8 @@ library:
     - ProjMajster.DSL.SourceSet
     - ProjMajster.DSL.Target
     - ProjMajster.Graph
+    - ProjMajster.Graph.Build
+    - ProjMajster.Graph.Types
     - ProjMajster.Plan
     - ProjMajster.Plan.Error
     - ProjMajster.Plan.Resolve

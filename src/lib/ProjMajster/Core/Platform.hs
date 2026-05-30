@@ -4,6 +4,7 @@ module ProjMajster.Core.Platform
   ( OS(..)
   , Arch(..)
   , Platform(..)
+  , BuildDirs(..)
   , BuildContext(..)
   ) where
 
@@ -30,8 +31,16 @@ data Platform = Platform
   , platformAspects :: [Text]
   } deriving (Eq, Ord, Show)
 
+data BuildDirs = BuildDirs
+  { buildRootDir :: FilePath
+  , buildInterDir :: FilePath
+  , buildProductDir :: FilePath
+  , buildDistDir :: FilePath
+  } deriving (Eq, Ord, Show)
+
 data BuildContext = BuildContext
   { buildPlatform :: Platform
   , targetPlatform :: Platform
   , contextBuildStyle :: BuildStyle
+  , contextBuildDirs :: BuildDirs
   } deriving (Eq, Show)

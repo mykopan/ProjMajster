@@ -249,7 +249,7 @@ data BuildContext = BuildContext
   { buildPlatform  :: Platform
   , targetPlatform :: Platform
   , contextBuildStyle :: BuildStyle
-  , buildDirs      :: BuildDirs
+  , contextBuildDirs :: BuildDirs
   , toolchain      :: Toolchain
   }
 
