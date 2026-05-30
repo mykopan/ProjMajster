@@ -226,11 +226,24 @@ testShakeSourceDiscovery = do
     [single] -> pure single
     xs -> fail $ "expected one manifest, got " <> show (length xs)
 
-  content <- lines <$> readFile (sourceManifestPath manifest)
+  discovered <- parseSourceManifestContent <$>
+    readFile (sourceManifestPath manifest)
 
-  assertEqual "shake source discovery manifest"
-    ["a.c", "b.c"]
-    content
+  assertEqual "shake discovered sources"
+    [ DiscoveredSource
+        { discoveredSourceOwner = TargetName "foo"
+        , discoveredSourceBaseDir = root </> "src" </> "foo"
+        , discoveredSourcePath = "a.c"
+        , discoveredSourceLanguage = C
+        }
+    , DiscoveredSource
+        { discoveredSourceOwner = TargetName "foo"
+        , discoveredSourceBaseDir = root </> "src" </> "foo"
+        , discoveredSourcePath = "b.c"
+        , discoveredSourceLanguage = C
+        }
+    ]
+    discovered
 
 testDuplicateTargetsFail :: IO ()
 testDuplicateTargetsFail =

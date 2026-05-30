@@ -1,7 +1,11 @@
 module ProjMajster.Backend.Shake
-  ( SourceManifest(..)
+  ( DiscoveredSource(..)
+  , SourceManifest(..)
   , sourceManifests
   , sourceDiscoveryRules
+  , discoverSources
+  , parseSourceManifestContent
+  , readSourceManifest
   ) where
 
 import ProjMajster.Backend.Shake.SourceDiscovery
