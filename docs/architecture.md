@@ -13,7 +13,7 @@ ProjMajster should have three explicit phases:
 DSL declarations
   -> validation and resolution
   -> BuildPlan
-  -> BuildGraph
+  -> BuildRecipe
   -> Shake rules
 ```
 
@@ -22,7 +22,7 @@ Shake integration should happen only after the build has been resolved into an
 internal plan.
 
 `BuildPlan` is mostly static: it contains resolved targets, settings,
-dependency declarations, and toolchain choices. `BuildGraph` is concrete enough
+dependency declarations, and toolchain choices. `BuildRecipe` is concrete enough
 to emit Shake rules, but it must not pretend that every dependency is known
 up front. Some dependencies are discovered during Shake actions, for example C
 and C++ header dependencies emitted by the compiler.
@@ -121,7 +121,7 @@ ProjMajster.Plan.InternalDeps
 ProjMajster.Plan.Settings
 ```
 
-### Build Graph Layer
+### Build Recipe Layer
 
 Purpose:
 
@@ -139,11 +139,11 @@ rules. Custom transforms use the same representation.
 Suggested modules:
 
 ```text
-ProjMajster.Graph
-ProjMajster.Graph.FileRef
-ProjMajster.Graph.Step
-ProjMajster.Graph.Transform
-ProjMajster.Graph.Layout
+ProjMajster.Recipe
+ProjMajster.Recipe.FileRef
+ProjMajster.Recipe.Step
+ProjMajster.Recipe.Transform
+ProjMajster.Recipe.Layout
 ```
 
 ### Toolchain Layer
@@ -262,9 +262,9 @@ data BuildPlan = BuildPlan
   , planInstallSpecs :: [ResolvedInstallSpec]
   }
 
-data BuildGraph = BuildGraph
-  { graphSources :: [SourceDiscovery]
-  , graphTargets :: [TargetBuild]
+data BuildRecipe = BuildRecipe
+  { recipeSources :: [SourceDiscovery]
+  , recipeTargets :: [TargetRecipe]
   }
 
 data SourceDiscovery = SourceDiscovery
@@ -272,13 +272,13 @@ data SourceDiscovery = SourceDiscovery
   , sourceDiscoveryGlob  :: SourceGlob
   }
 
-data TargetBuild = TargetBuild
-  { targetBuildName         :: TargetName
-  , targetBuildKind         :: TargetKind
-  , targetBuildSources      :: [SourceDiscovery]
-  , targetBuildTransforms   :: [TransformRule]
-  , targetBuildDependencies :: [TargetName]
-  , targetBuildOutput       :: FileRef
+data TargetRecipe = TargetRecipe
+  { targetRecipeName         :: TargetName
+  , targetRecipeKind         :: TargetKind
+  , targetRecipeSources      :: [SourceDiscovery]
+  , targetRecipeTransforms   :: [TransformRule]
+  , targetRecipeDependencies :: [TargetName]
+  , targetRecipeOutput       :: FileRef
   }
 
 data TransformRule = TransformRule
@@ -295,7 +295,7 @@ data TransformKind
 ```
 
 The exact representation can change, but the distinction should remain:
-`BuildGraph` is a declarative graph of source discovery and target transform
+`BuildRecipe` is a declarative graph of source discovery and target transform
 pipelines. Backend-specific execution instances are derived later.
 
 Examples:
@@ -337,7 +337,7 @@ transform code.
 1. Core types compile.
 2. DSL can declare a project with one shared library and one program.
 3. Planning validates declarations and resolves settings.
-4. Graph lowering applies built-in and custom transform rules with
+4. Recipe lowering applies built-in and custom transform rules with
    planned/discovered dependency metadata.
 5. Shake backend can run those steps.
 6. C/C++ compile transforms record generated header dependencies.

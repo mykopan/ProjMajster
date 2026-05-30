@@ -18,7 +18,7 @@ import Development.Shake
 import Development.Shake.FilePath
 
 import ProjMajster.Core
-import ProjMajster.Graph
+import ProjMajster.Recipe
 
 data DiscoveredSource = DiscoveredSource
   { discoveredSourceOwner :: TargetName
@@ -32,11 +32,11 @@ data SourceManifest = SourceManifest
   , sourceManifestPath :: FilePath
   } deriving (Eq, Show)
 
-sourceManifests :: BuildContext -> BuildGraph -> [SourceManifest]
+sourceManifests :: BuildContext -> BuildRecipe -> [SourceManifest]
 sourceManifests context graph =
-  zipWith (sourceManifest context) [0 :: Int ..] (graphSources graph)
+  zipWith (sourceManifest context) [0 :: Int ..] (recipeSources graph)
 
-sourceDiscoveryRules :: BuildContext -> BuildGraph -> Rules ()
+sourceDiscoveryRules :: BuildContext -> BuildRecipe -> Rules ()
 sourceDiscoveryRules context graph =
   mapM_ sourceManifestRule manifests
   where

@@ -16,7 +16,7 @@ main :: IO ()
 main = do
   testDslBuildsProject
   testPlanningResolvesProject
-  testGraphBuildsCompileAndLinkSteps
+  testRecipeBuildsTransformPipelines
   testShakeSourceDiscovery
   testMapTransformPlanning
   testShakeTransformInstanceRules
@@ -135,21 +135,21 @@ testPlanningResolvesProject = do
     (resolvedTargetDeps app)
     (resolvedTargetDeps debugApp)
 
-testGraphBuildsCompileAndLinkSteps :: IO ()
-testGraphBuildsCompileAndLinkSteps = do
+testRecipeBuildsTransformPipelines :: IO ()
+testRecipeBuildsTransformPipelines = do
   plan <- assertRight "resolve release project" $
     resolveProject releaseContext demoProject
 
-  let graph = buildGraph plan
+  let graph = lowerBuildPlan plan
 
   assertEqual "source discovery count"
     4
-    (length (graphSources graph))
+    (length (recipeSources graph))
 
-  (libBuild, appBuild) <- case graphTargets graph of
+  (libBuild, appBuild) <- case recipeTargets graph of
     [libTarget, appTarget] -> pure (libTarget, appTarget)
     targets -> fail $
-      "expected exactly two target builds, got " <> show (length targets)
+      "expected exactly two target recipes, got " <> show (length targets)
 
   assertEqual "library transform pipeline"
     [ CustomAction "json-to-c"
@@ -157,31 +157,31 @@ testGraphBuildsCompileAndLinkSteps = do
     , BuiltinAction BuiltinCompileCxx
     , BuiltinAction BuiltinLink
     ]
-    (map transformAction (targetBuildTransforms libBuild))
+    (map transformAction (targetRecipeTransforms libBuild))
 
   assertEqual "app transform pipeline"
     [ BuiltinAction BuiltinCompileC
     , BuiltinAction BuiltinCompileCxx
     , BuiltinAction BuiltinLink
     ]
-    (map transformAction (targetBuildTransforms appBuild))
+    (map transformAction (targetRecipeTransforms appBuild))
 
-  assertEqual "app target build depends on library target"
+  assertEqual "app target recipe depends on library target"
     [TargetName "foo"]
-    (targetBuildDependencies appBuild)
+    (targetRecipeDependencies appBuild)
 
   assertEqual "library output role"
     SharedObject
-    (fileRefRole (targetBuildOutput libBuild))
+    (fileRefRole (targetRecipeOutput libBuild))
 
   assertEqual "app output role"
     ProgramBinary
-    (fileRefRole (targetBuildOutput appBuild))
+    (fileRefRole (targetRecipeOutput appBuild))
 
   assertEqual "json transform stays in graph as rule"
     [OutputGeneratedSource C ".c"]
     [ transformOutput rule
-    | rule <- targetBuildTransforms libBuild
+    | rule <- targetRecipeTransforms libBuild
     , transformAction rule == CustomAction "json-to-c"
     ]
 
@@ -202,8 +202,8 @@ testShakeSourceDiscovery = do
             , buildDistDir = root </> "_build" </> "dist"
             }
         }
-  let graph = BuildGraph
-        { graphSources =
+  let graph = BuildRecipe
+        { recipeSources =
             [ SourceDiscovery
                 { sourceDiscoveryOwner = TargetName "foo"
                 , sourceDiscoveryGlob = SourceGlob
@@ -213,7 +213,7 @@ testShakeSourceDiscovery = do
                     }
                 }
             ]
-        , graphTargets = []
+        , recipeTargets = []
         }
 
   let manifests = sourceManifests context graph
@@ -252,14 +252,14 @@ testMapTransformPlanning :: IO ()
 testMapTransformPlanning = do
   plan <- assertRight "resolve release project" $
     resolveProject releaseContext demoProject
-  let graph = buildGraph plan
+  let graph = lowerBuildPlan plan
 
-  libBuild <- case graphTargets graph of
+  libBuild <- case recipeTargets graph of
     libTarget : _ -> pure libTarget
-    [] -> fail "expected at least one target build"
+    [] -> fail "expected at least one target recipe"
   let reorderedLibBuild = libBuild
-        { targetBuildTransforms =
-            reorderForClosureTest (targetBuildTransforms libBuild)
+        { targetRecipeTransforms =
+            reorderForClosureTest (targetRecipeTransforms libBuild)
         }
   let dependencyOutput = FileRef
         { fileRefPath = "_build/product/libdep.so"
@@ -371,11 +371,11 @@ testShakeTransformInstanceRules = do
 
   plan <- assertRight "resolve release project" $
     resolveProject releaseContext demoProject
-  let graph = buildGraph plan
+  let graph = lowerBuildPlan plan
 
-  libBuild0 <- case graphTargets graph of
+  libBuild0 <- case recipeTargets graph of
     libTarget : _ -> pure libTarget
-    [] -> fail "expected at least one target build"
+    [] -> fail "expected at least one target recipe"
 
   let context = releaseContext
         { contextBuildDirs = BuildDirs
@@ -386,9 +386,9 @@ testShakeTransformInstanceRules = do
             }
         }
   let libBuild = libBuild0
-        { targetBuildTransforms =
-            reorderForClosureTest (targetBuildTransforms libBuild0)
-        , targetBuildOutput = FileRef
+        { targetRecipeTransforms =
+            reorderForClosureTest (targetRecipeTransforms libBuild0)
+        , targetRecipeOutput = FileRef
             { fileRefPath = root </> "_build" </> "product" </> "libfoo.so"
             , fileRefRole = SharedObject
             , fileRefLanguage = Nothing
@@ -430,9 +430,9 @@ testShakeTransformInstanceRules = do
     , shakeVerbosity = Silent
     } $ do
       transformInstanceRules instances
-      want [fileRefPath (targetBuildOutput libBuild)]
+      want [fileRefPath (targetRecipeOutput libBuild)]
 
-  linkStamp <- readFile (fileRefPath (targetBuildOutput libBuild))
+  linkStamp <- readFile (fileRefPath (targetRecipeOutput libBuild))
   let linkInputs = drop 4 (lines linkStamp)
 
   assertEqual "link stamp input count"

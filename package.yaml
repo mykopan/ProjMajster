@@ -48,9 +48,9 @@ library:
     - ProjMajster.DSL.Settings
     - ProjMajster.DSL.SourceSet
     - ProjMajster.DSL.Target
-    - ProjMajster.Graph
-    - ProjMajster.Graph.Build
-    - ProjMajster.Graph.Types
+    - ProjMajster.Recipe
+    - ProjMajster.Recipe.Build
+    - ProjMajster.Recipe.Types
     - ProjMajster.Plan
     - ProjMajster.Plan.Error
     - ProjMajster.Plan.Resolve

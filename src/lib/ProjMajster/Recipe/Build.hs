@@ -1,31 +1,31 @@
-module ProjMajster.Graph.Build
-  ( buildGraph
+module ProjMajster.Recipe.Build
+  ( lowerBuildPlan
   ) where
 
 import qualified Data.Text as Text
 import System.FilePath ((</>), (<.>))
 
 import ProjMajster.Core
-import ProjMajster.Graph.Types
+import ProjMajster.Recipe.Types
 import ProjMajster.Plan.Types
 
-buildGraph :: BuildPlan -> BuildGraph
-buildGraph plan = BuildGraph
-  { graphSources = concatMap targetBuildSources targets
-  , graphTargets = targets
+lowerBuildPlan :: BuildPlan -> BuildRecipe
+lowerBuildPlan plan = BuildRecipe
+  { recipeSources = concatMap targetRecipeSources targets
+  , recipeTargets = targets
   }
   where
     targets =
-      map (targetBuild (planContext plan)) (planTargets plan)
+      map (targetRecipe (planContext plan)) (planTargets plan)
 
-targetBuild :: BuildContext -> ResolvedTarget -> TargetBuild
-targetBuild context target = TargetBuild
-  { targetBuildName = resolvedTargetName target
-  , targetBuildKind = resolvedTargetKind target
-  , targetBuildSources = sourceDiscoveries (resolvedTargetName target) target
-  , targetBuildTransforms = resolvedTargetTransforms target
-  , targetBuildDependencies = internalDependencies target
-  , targetBuildOutput = targetOutput context target
+targetRecipe :: BuildContext -> ResolvedTarget -> TargetRecipe
+targetRecipe context target = TargetRecipe
+  { targetRecipeName = resolvedTargetName target
+  , targetRecipeKind = resolvedTargetKind target
+  , targetRecipeSources = sourceDiscoveries (resolvedTargetName target) target
+  , targetRecipeTransforms = resolvedTargetTransforms target
+  , targetRecipeDependencies = internalDependencies target
+  , targetRecipeOutput = targetOutput context target
   }
 
 sourceDiscoveries :: TargetName -> ResolvedTarget -> [SourceDiscovery]

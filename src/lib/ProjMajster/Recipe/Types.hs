@@ -1,7 +1,7 @@
-module ProjMajster.Graph.Types
-  ( BuildGraph(..)
+module ProjMajster.Recipe.Types
+  ( BuildRecipe(..)
   , SourceDiscovery(..)
-  , TargetBuild(..)
+  , TargetRecipe(..)
   , FileRef(..)
   , SourceGlob(..)
   ) where
@@ -11,9 +11,9 @@ import ProjMajster.Core.SourceSet (Language)
 import ProjMajster.Core.Target (TargetKind, TargetName)
 import ProjMajster.Core.Transform (TransformRule)
 
-data BuildGraph = BuildGraph
-  { graphSources :: [SourceDiscovery]
-  , graphTargets :: [TargetBuild]
+data BuildRecipe = BuildRecipe
+  { recipeSources :: [SourceDiscovery]
+  , recipeTargets :: [TargetRecipe]
   } deriving (Eq, Show)
 
 data SourceDiscovery = SourceDiscovery
@@ -21,13 +21,13 @@ data SourceDiscovery = SourceDiscovery
   , sourceDiscoveryGlob :: SourceGlob
   } deriving (Eq, Ord, Show)
 
-data TargetBuild = TargetBuild
-  { targetBuildName :: TargetName
-  , targetBuildKind :: TargetKind
-  , targetBuildSources :: [SourceDiscovery]
-  , targetBuildTransforms :: [TransformRule]
-  , targetBuildDependencies :: [TargetName]
-  , targetBuildOutput :: FileRef
+data TargetRecipe = TargetRecipe
+  { targetRecipeName :: TargetName
+  , targetRecipeKind :: TargetKind
+  , targetRecipeSources :: [SourceDiscovery]
+  , targetRecipeTransforms :: [TransformRule]
+  , targetRecipeDependencies :: [TargetName]
+  , targetRecipeOutput :: FileRef
   } deriving (Eq, Show)
 
 data FileRef = FileRef

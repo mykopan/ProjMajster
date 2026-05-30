@@ -14,7 +14,7 @@ import qualified System.Directory as Directory
 
 import ProjMajster.Backend.Shake.SourceDiscovery
 import ProjMajster.Core
-import ProjMajster.Graph
+import ProjMajster.Recipe
 
 data TransformInstance = TransformInstance
   { transformInstanceTarget :: TargetName
@@ -55,7 +55,7 @@ transformNameString (TransformName name) =
 
 planTargetTransforms
   :: BuildContext
-  -> TargetBuild
+  -> TargetRecipe
   -> [DiscoveredSource]
   -> [FileRef]
   -> [TransformInstance]
@@ -73,7 +73,7 @@ planTargetTransforms context target discovered dependencyOutputs =
 
 planMapTransforms
   :: BuildContext
-  -> TargetBuild
+  -> TargetRecipe
   -> [DiscoveredSource]
   -> [TransformInstance]
 planMapTransforms context target discovered =
@@ -81,7 +81,7 @@ planMapTransforms context target discovered =
   where
     sourceRefs = targetSourceRefs target discovered
     mapRules =
-      filter ((MapTransform ==) . transformKind) (targetBuildTransforms target)
+      filter ((MapTransform ==) . transformKind) (targetRecipeTransforms target)
 
     go seen refs instances =
       case newInstances seen refs of
@@ -121,14 +121,14 @@ foldTransformInstanceKey instance_ =
 
 planFoldTransforms
   :: BuildContext
-  -> TargetBuild
+  -> TargetRecipe
   -> [FileRef]
   -> [TransformInstance]
 planFoldTransforms context target refs =
   go Set.empty []
   where
     foldRules =
-      filter ((FoldTransform ==) . transformKind) (targetBuildTransforms target)
+      filter ((FoldTransform ==) . transformKind) (targetRecipeTransforms target)
 
     go seen instances =
       case newInstances seen of
@@ -148,12 +148,12 @@ planFoldTransforms context target refs =
 
 mapTransformInstance
   :: BuildContext
-  -> TargetBuild
+  -> TargetRecipe
   -> TransformRule
   -> FileRef
   -> TransformInstance
 mapTransformInstance context target rule input = TransformInstance
-  { transformInstanceTarget = targetBuildName target
+  { transformInstanceTarget = targetRecipeName target
   , transformInstanceRule = rule
   , transformInstanceInputs = [input]
   , transformInstanceOutputs =
@@ -162,12 +162,12 @@ mapTransformInstance context target rule input = TransformInstance
 
 foldTransformInstance
   :: BuildContext
-  -> TargetBuild
+  -> TargetRecipe
   -> TransformRule
   -> [FileRef]
   -> TransformInstance
 foldTransformInstance _context target rule inputs = TransformInstance
-  { transformInstanceTarget = targetBuildName target
+  { transformInstanceTarget = targetRecipeName target
   , transformInstanceRule = rule
   , transformInstanceInputs = inputs
   , transformInstanceOutputs = [foldTransformOutput target rule]
@@ -189,7 +189,7 @@ matchesInput selector file =
 
 mapTransformOutput
   :: BuildContext
-  -> TargetBuild
+  -> TargetRecipe
   -> TransformRule
   -> FileRef
   -> FileRef
@@ -198,65 +198,65 @@ mapTransformOutput context target rule input =
     OutputObject ->
       FileRef
         { fileRefPath =
-            targetInterDir context (targetBuildName target)
+            targetInterDir context (targetRecipeName target)
               </> "obj"
               </> normalizedObjectPath input
               <.> "o"
         , fileRefRole = ObjectFile
         , fileRefLanguage = Nothing
-        , fileRefOwner = Just (targetBuildName target)
+        , fileRefOwner = Just (targetRecipeName target)
         }
     OutputGeneratedSource language suffix ->
       FileRef
         { fileRefPath =
-            targetInterDir context (targetBuildName target)
+            targetInterDir context (targetRecipeName target)
               </> "generated"
               </> (dropExtension (fileRefPath input) <> suffix)
         , fileRefRole = GeneratedSource
         , fileRefLanguage = Just language
-        , fileRefOwner = Just (targetBuildName target)
+        , fileRefOwner = Just (targetRecipeName target)
         }
     OutputCustom role suffix ->
       FileRef
         { fileRefPath =
-            targetInterDir context (targetBuildName target)
+            targetInterDir context (targetRecipeName target)
               </> "custom"
               </> (dropExtension (fileRefPath input) <> suffix)
         , fileRefRole = role
         , fileRefLanguage = Nothing
-        , fileRefOwner = Just (targetBuildName target)
+        , fileRefOwner = Just (targetRecipeName target)
         }
     OutputTargetBinary ->
-      targetBuildOutput target
+      targetRecipeOutput target
 
-foldTransformOutput :: TargetBuild -> TransformRule -> FileRef
+foldTransformOutput :: TargetRecipe -> TransformRule -> FileRef
 foldTransformOutput target rule =
   case transformOutput rule of
     OutputTargetBinary ->
-      targetBuildOutput target
+      targetRecipeOutput target
     OutputCustom role suffix ->
       FileRef
         { fileRefPath =
-            fileRefPath (targetBuildOutput target) <> suffix
+            fileRefPath (targetRecipeOutput target) <> suffix
         , fileRefRole = role
         , fileRefLanguage = Nothing
-        , fileRefOwner = Just (targetBuildName target)
+        , fileRefOwner = Just (targetRecipeName target)
         }
     OutputObject ->
-      targetBuildOutput target
+      targetRecipeOutput target
     OutputGeneratedSource language suffix ->
       FileRef
         { fileRefPath =
-            fileRefPath (targetBuildOutput target) <> suffix
+            fileRefPath (targetRecipeOutput target) <> suffix
         , fileRefRole = GeneratedSource
         , fileRefLanguage = Just language
-        , fileRefOwner = Just (targetBuildName target)
+        , fileRefOwner = Just (targetRecipeName target)
         }
 
-targetSourceRefs :: TargetBuild -> [DiscoveredSource] -> [FileRef]
+targetSourceRefs :: TargetRecipe -> [DiscoveredSource] -> [FileRef]
 targetSourceRefs target discovered =
   map discoveredSourceFileRef $
-    filter ((targetBuildName target ==) . discoveredSourceOwner) discovered
+    filter ((targetRecipeName target ==) . discoveredSourceOwner) discovered
 
 discoveredSourceFileRef :: DiscoveredSource -> FileRef
 discoveredSourceFileRef source = FileRef
