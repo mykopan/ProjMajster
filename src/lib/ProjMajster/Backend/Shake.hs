@@ -9,6 +9,7 @@ module ProjMajster.Backend.Shake
   , planMapTransforms
   , planTargetTransforms
   , readSourceManifest
+  , transformInstanceRules
   ) where
 
 import ProjMajster.Backend.Shake.SourceDiscovery

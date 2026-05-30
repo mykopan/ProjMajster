@@ -2,12 +2,15 @@ module ProjMajster.Backend.Shake.Transform
   ( TransformInstance(..)
   , planMapTransforms
   , planTargetTransforms
+  , transformInstanceRules
   ) where
 
 import Data.List (sort)
 import qualified Data.Text as Text
 import qualified Data.Set as Set
-import System.FilePath ((</>), (<.>), dropExtension, splitDirectories)
+import Development.Shake
+import System.FilePath ((</>), (<.>), dropExtension, splitDirectories, takeDirectory)
+import qualified System.Directory as Directory
 
 import ProjMajster.Backend.Shake.SourceDiscovery
 import ProjMajster.Core
@@ -19,6 +22,36 @@ data TransformInstance = TransformInstance
   , transformInstanceInputs :: [FileRef]
   , transformInstanceOutputs :: [FileRef]
   } deriving (Eq, Show)
+
+transformInstanceRules :: [TransformInstance] -> Rules ()
+transformInstanceRules =
+  mapM_ transformInstanceBuildRules
+
+transformInstanceBuildRules :: TransformInstance -> Rules ()
+transformInstanceBuildRules instance_ =
+  mapM_ (`transformInstanceOutputRule` instance_) (transformInstanceOutputs instance_)
+
+transformInstanceOutputRule :: FileRef -> TransformInstance -> Rules ()
+transformInstanceOutputRule output instance_ =
+  fileRefPath output %> \outputPath -> do
+    need (map fileRefPath (transformInstanceInputs instance_))
+    liftIO $ Directory.createDirectoryIfMissing True (takeDirectory outputPath)
+    writeFileChanged outputPath (transformInstanceStamp instance_ output)
+
+transformInstanceStamp :: TransformInstance -> FileRef -> String
+transformInstanceStamp instance_ output = unlines $
+  [ "transform: " <> transformNameString (transformName (transformInstanceRule instance_))
+  , "target: " <> targetNameString (transformInstanceTarget instance_)
+  , "output: " <> fileRefPath output
+  , "inputs:"
+  ] <>
+  [ "- " <> fileRefPath input
+  | input <- transformInstanceInputs instance_
+  ]
+
+transformNameString :: TransformName -> String
+transformNameString (TransformName name) =
+  Text.unpack name
 
 planTargetTransforms
   :: BuildContext
@@ -244,7 +277,7 @@ targetNameString (TargetName name) =
 
 normalizedObjectPath :: FileRef -> FilePath
 normalizedObjectPath =
-  joinPathWithUnderscore . splitDirectories . dropExtension . fileRefPath
+  joinPathWithUnderscore . splitDirectories . fileRefPath
 
 joinPathWithUnderscore :: [FilePath] -> FilePath
 joinPathWithUnderscore =

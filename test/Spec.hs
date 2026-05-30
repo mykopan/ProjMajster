@@ -19,6 +19,7 @@ main = do
   testGraphBuildsCompileAndLinkSteps
   testShakeSourceDiscovery
   testMapTransformPlanning
+  testShakeTransformInstanceRules
   testDuplicateTargetsFail
   testUnknownBuildStyleFails
 
@@ -357,6 +358,90 @@ countAction transformAction' instances =
     , transformAction (transformInstanceRule instance_) == transformAction'
     ]
 
+testShakeTransformInstanceRules :: IO ()
+testShakeTransformInstanceRules = do
+  let root = "test" </> "tmp" </> "transform-rules"
+  Directory.removePathForcibly root `catchIO` \_ -> pure ()
+  Directory.createDirectoryIfMissing True (root </> "src" </> "foo")
+  Directory.createDirectoryIfMissing True (root </> "_build" </> "product")
+  writeFile (root </> "src" </> "foo" </> "config.json") "{}"
+  writeFile (root </> "src" </> "foo" </> "main.c") "int main_c;"
+  writeFile (root </> "src" </> "foo" </> "main.cpp") "int main_cpp;"
+  writeFile (root </> "_build" </> "product" </> "libdep.so") "dep"
+
+  plan <- assertRight "resolve release project" $
+    resolveProject releaseContext demoProject
+  let graph = buildGraph plan
+
+  libBuild0 <- case graphTargets graph of
+    libTarget : _ -> pure libTarget
+    [] -> fail "expected at least one target build"
+
+  let context = releaseContext
+        { contextBuildDirs = BuildDirs
+            { buildRootDir = root </> "_build"
+            , buildInterDir = root </> "_build" </> "inter"
+            , buildProductDir = root </> "_build" </> "product"
+            , buildDistDir = root </> "_build" </> "dist"
+            }
+        }
+  let libBuild = libBuild0
+        { targetBuildTransforms =
+            reorderForClosureTest (targetBuildTransforms libBuild0)
+        , targetBuildOutput = FileRef
+            { fileRefPath = root </> "_build" </> "product" </> "libfoo.so"
+            , fileRefRole = SharedObject
+            , fileRefLanguage = Nothing
+            , fileRefOwner = Just (TargetName "foo")
+            }
+        }
+  let dependencyOutput = FileRef
+        { fileRefPath = root </> "_build" </> "product" </> "libdep.so"
+        , fileRefRole = SharedObject
+        , fileRefLanguage = Nothing
+        , fileRefOwner = Just (TargetName "dep")
+        }
+  let discovered =
+        [ DiscoveredSource
+            { discoveredSourceOwner = TargetName "foo"
+            , discoveredSourceBaseDir = root </> "src" </> "foo"
+            , discoveredSourcePath = "config.json"
+            , discoveredSourceLanguage = CustomLanguage "json"
+            }
+        , DiscoveredSource
+            { discoveredSourceOwner = TargetName "foo"
+            , discoveredSourceBaseDir = root </> "src" </> "foo"
+            , discoveredSourcePath = "main.c"
+            , discoveredSourceLanguage = C
+            }
+        , DiscoveredSource
+            { discoveredSourceOwner = TargetName "foo"
+            , discoveredSourceBaseDir = root </> "src" </> "foo"
+            , discoveredSourcePath = "main.cpp"
+            , discoveredSourceLanguage = Cxx
+            }
+        ]
+
+  let instances =
+        planTargetTransforms context libBuild discovered [dependencyOutput]
+
+  shake shakeOptions
+    { shakeFiles = root </> "_shake"
+    , shakeVerbosity = Silent
+    } $ do
+      transformInstanceRules instances
+      want [fileRefPath (targetBuildOutput libBuild)]
+
+  linkStamp <- readFile (fileRefPath (targetBuildOutput libBuild))
+  let linkInputs = drop 4 (lines linkStamp)
+
+  assertEqual "link stamp input count"
+    4
+    (length linkInputs)
+
+  assertBool "link stamp includes dependency output" $
+    ("- " <> fileRefPath dependencyOutput) `elem` linkInputs
+
 testDuplicateTargetsFail :: IO ()
 testDuplicateTargetsFail =
   assertEqual "duplicate target error"
@@ -448,6 +533,10 @@ assertEqual label expected actual =
       , "expected: " <> show expected
       , "actual:   " <> show actual
       ]
+
+assertBool :: String -> Bool -> IO ()
+assertBool label condition =
+  unless condition (fail label)
 
 assertRight :: Show e => String -> Either e a -> IO a
 assertRight _ (Right value) = pure value
