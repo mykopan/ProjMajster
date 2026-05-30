@@ -318,6 +318,34 @@ compile-cxx: MapTransform  C++ source -> object file
 link       : FoldTransform object files + dependency outputs -> target binary
 ```
 
+Shake backend executes planned transform instances through a runner registry:
+
+```haskell
+type ShakeTransformRunner =
+  RuleContext -> TransformRule -> [FileRef] -> [FileRef] -> Action ()
+
+data TransformRunnerRegistry = TransformRunnerRegistry
+  { transformRunners        :: Map TransformAction ShakeTransformRunner
+  , transformFallbackRunner :: ShakeTransformRunner
+  }
+
+data CommandSpec = CommandSpec
+  { commandExecutable :: FilePath
+  , commandArguments  :: [String]
+  , commandInputs     :: [FileRef]
+  , commandOutputs    :: [FileRef]
+  }
+
+type CommandRunner =
+  RuleContext -> CommandSpec -> Action ()
+```
+
+This keeps built-in transforms and custom transforms on the same execution
+path. The default fallback runner currently writes deterministic stamp files;
+real compiler, linker, and code-generation runners can replace actions
+incrementally. Built-in transforms may lower to `CommandSpec` first, which keeps
+tool command construction testable separately from process execution.
+
 ## Error Strategy
 
 Prefer early validation errors during planning:

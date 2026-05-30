@@ -1,7 +1,13 @@
 module ProjMajster.Backend.Shake
-  ( DiscoveredSource(..)
+  ( CommandRunner
+  , CommandSpec(..)
+  , DiscoveredSource(..)
+  , ShakeTransformRunner
   , SourceManifest(..)
   , TransformInstance(..)
+  , TransformRunnerRegistry(..)
+  , builtinCommandTransformRunners
+  , defaultTransformRunnerRegistry
   , sourceManifests
   , sourceDiscoveryRules
   , discoverSources
@@ -10,6 +16,8 @@ module ProjMajster.Backend.Shake
   , planTargetTransforms
   , readSourceManifest
   , transformInstanceRules
+  , transformInstanceRulesWith
+  , transformRunnerRegistry
   ) where
 
 import ProjMajster.Backend.Shake.SourceDiscovery

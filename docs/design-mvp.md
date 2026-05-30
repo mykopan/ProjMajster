@@ -209,6 +209,28 @@ Toolchain and dependency usage metadata can be added to this context when those
 concepts become concrete. Raw Shake actions should remain available as an
 escape hatch.
 
+The Shake backend executes transform instances through a registry:
+
+```haskell
+type ShakeTransformRunner =
+  RuleContext -> TransformRule -> [FileRef] -> [FileRef] -> Action ()
+
+data CommandSpec = CommandSpec
+  { commandExecutable :: FilePath
+  , commandArguments  :: [String]
+  , commandInputs     :: [FileRef]
+  , commandOutputs    :: [FileRef]
+  }
+
+type CommandRunner =
+  RuleContext -> CommandSpec -> Action ()
+```
+
+The same runner shape is used for built-in compile/link transforms and custom
+transforms. A fallback runner allows the model to be tested before every real
+tool invocation exists. Built-in transforms can lower to `CommandSpec` so
+command construction and process execution remain separate.
+
 At minimum, the model distinguishes:
 
 - `MapTransform`: one input item to output item(s), for example `.json -> .c`

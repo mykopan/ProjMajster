@@ -1,11 +1,20 @@
 module ProjMajster.Backend.Shake.Transform
-  ( TransformInstance(..)
+  ( CommandRunner
+  , CommandSpec(..)
+  , ShakeTransformRunner
+  , TransformInstance(..)
+  , TransformRunnerRegistry(..)
+  , builtinCommandTransformRunners
+  , defaultTransformRunnerRegistry
   , planMapTransforms
   , planTargetTransforms
   , transformInstanceRules
+  , transformInstanceRulesWith
+  , transformRunnerRegistry
   ) where
 
 import Data.List (sort)
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import qualified Data.Set as Set
 import Development.Shake
@@ -16,6 +25,19 @@ import ProjMajster.Backend.Shake.SourceDiscovery
 import ProjMajster.Core
 import ProjMajster.Recipe
 
+type ShakeTransformRunner =
+  RuleContext -> TransformRule -> [FileRef] -> [FileRef] -> Action ()
+
+type CommandRunner =
+  RuleContext -> CommandSpec -> Action ()
+
+data CommandSpec = CommandSpec
+  { commandExecutable :: FilePath
+  , commandArguments :: [String]
+  , commandInputs :: [FileRef]
+  , commandOutputs :: [FileRef]
+  } deriving (Eq, Show)
+
 data TransformInstance = TransformInstance
   { transformInstanceTarget :: TargetName
   , transformInstanceRuleContext :: RuleContext
@@ -24,30 +46,89 @@ data TransformInstance = TransformInstance
   , transformInstanceOutputs :: [FileRef]
   } deriving (Eq, Show)
 
+data TransformRunnerRegistry = TransformRunnerRegistry
+  { transformRunners :: Map.Map TransformAction ShakeTransformRunner
+  , transformFallbackRunner :: ShakeTransformRunner
+  }
+
+defaultTransformRunnerRegistry :: TransformRunnerRegistry
+defaultTransformRunnerRegistry = TransformRunnerRegistry
+  { transformRunners = Map.empty
+  , transformFallbackRunner = stampTransformRunner
+  }
+
+transformRunnerRegistry :: [(TransformAction, ShakeTransformRunner)] -> TransformRunnerRegistry
+transformRunnerRegistry runners = defaultTransformRunnerRegistry
+  { transformRunners = Map.fromList runners
+  }
+
+builtinCommandTransformRunners :: CommandRunner -> [(TransformAction, ShakeTransformRunner)]
+builtinCommandTransformRunners commandRunner =
+  [ (BuiltinAction BuiltinCompileC, compileCTransformRunner commandRunner)
+  ]
+
+compileCTransformRunner :: CommandRunner -> ShakeTransformRunner
+compileCTransformRunner commandRunner context _rule inputs outputs =
+  case (inputs, outputs) of
+    ([input], [output]) ->
+      commandRunner context CommandSpec
+        { commandExecutable = "cc"
+        , commandArguments = ["-c", fileRefPath input, "-o", fileRefPath output]
+        , commandInputs = inputs
+        , commandOutputs = outputs
+        }
+    _ ->
+      fail "compile-c transform expects exactly one input and one output"
+
 transformInstanceRules :: [TransformInstance] -> Rules ()
 transformInstanceRules =
-  mapM_ transformInstanceBuildRules
+  transformInstanceRulesWith defaultTransformRunnerRegistry
 
-transformInstanceBuildRules :: TransformInstance -> Rules ()
-transformInstanceBuildRules instance_ =
-  mapM_ (`transformInstanceOutputRule` instance_) (transformInstanceOutputs instance_)
+transformInstanceRulesWith :: TransformRunnerRegistry -> [TransformInstance] -> Rules ()
+transformInstanceRulesWith registry =
+  mapM_ (transformInstanceBuildRules registry)
 
-transformInstanceOutputRule :: FileRef -> TransformInstance -> Rules ()
-transformInstanceOutputRule output instance_ =
-  fileRefPath output %> \outputPath -> do
-    need (map fileRefPath (transformInstanceInputs instance_))
-    liftIO $ Directory.createDirectoryIfMissing True (takeDirectory outputPath)
-    writeFileChanged outputPath (transformInstanceStamp instance_ output)
+transformInstanceBuildRules :: TransformRunnerRegistry -> TransformInstance -> Rules ()
+transformInstanceBuildRules registry instance_ =
+  case transformInstanceOutputs instance_ of
+    [] ->
+      pure ()
+    outputs ->
+      map fileRefPath outputs &%> \_ -> do
+        need (map fileRefPath (transformInstanceInputs instance_))
+        runTransformInstance registry instance_
 
-transformInstanceStamp :: TransformInstance -> FileRef -> String
-transformInstanceStamp instance_ output = unlines $
-  [ "transform: " <> transformNameString (transformName (transformInstanceRule instance_))
-  , "target: " <> targetNameString (transformInstanceTarget instance_)
+runTransformInstance :: TransformRunnerRegistry -> TransformInstance -> Action ()
+runTransformInstance registry instance_ =
+  runner
+    (transformInstanceRuleContext instance_)
+    (transformInstanceRule instance_)
+    (transformInstanceInputs instance_)
+    (transformInstanceOutputs instance_)
+  where
+    runner =
+      Map.findWithDefault
+        (transformFallbackRunner registry)
+        (transformAction (transformInstanceRule instance_))
+        (transformRunners registry)
+
+stampTransformRunner :: ShakeTransformRunner
+stampTransformRunner context rule inputs outputs =
+  mapM_ writeOutput outputs
+  where
+    writeOutput output = do
+      liftIO $ Directory.createDirectoryIfMissing True (takeDirectory (fileRefPath output))
+      writeFileChanged (fileRefPath output) (transformInstanceStamp context rule inputs output)
+
+transformInstanceStamp :: RuleContext -> TransformRule -> [FileRef] -> FileRef -> String
+transformInstanceStamp context rule inputs output = unlines $
+  [ "transform: " <> transformNameString (transformName rule)
+  , "target: " <> targetNameString (ruleContextTargetName context)
   , "output: " <> fileRefPath output
   , "inputs:"
   ] <>
   [ "- " <> fileRefPath input
-  | input <- transformInstanceInputs instance_
+  | input <- inputs
   ]
 
 transformNameString :: TransformName -> String

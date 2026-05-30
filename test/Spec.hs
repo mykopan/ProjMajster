@@ -7,6 +7,7 @@ import Control.Monad (unless)
 import Data.List (sort)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import Development.Shake
 import Development.Shake.FilePath
 import qualified System.Directory as Directory
@@ -443,12 +444,17 @@ testShakeTransformInstanceRules = do
 
   let instances =
         planTargetTransforms context libBuild discovered [dependencyOutput]
+  let registry =
+        transformRunnerRegistry
+          ( builtinCommandTransformRunners recordingCommandRunner <>
+            [(CustomAction "json-to-c", contextStampRunner)]
+          )
 
   shake shakeOptions
     { shakeFiles = root </> "_shake"
     , shakeVerbosity = Silent
     } $ do
-      transformInstanceRules instances
+      transformInstanceRulesWith registry instances
       want [fileRefPath (targetRecipeOutput libBuild)]
 
   linkStamp <- readFile (fileRefPath (targetRecipeOutput libBuild))
@@ -460,6 +466,81 @@ testShakeTransformInstanceRules = do
 
   assertBool "link stamp includes dependency output" $
     ("- " <> fileRefPath dependencyOutput) `elem` linkInputs
+
+  generatedSource <- case
+      [ output
+      | instance_ <- instances
+      , transformAction (transformInstanceRule instance_) == CustomAction "json-to-c"
+      , output <- transformInstanceOutputs instance_
+      ] of
+    [output] -> pure output
+    xs -> fail $ "expected one generated source, got " <> show (length xs)
+
+  generatedContent <- readFile (fileRefPath generatedSource)
+  assertBool "custom runner receives rule context target" $
+    "target: foo" `elem` lines generatedContent
+  assertBool "custom runner receives rule context build style" $
+    "style: release" `elem` lines generatedContent
+
+  let cSource = root </> "src" </> "foo" </> "main.c"
+  cObject <- case
+      [ output
+      | instance_ <- instances
+      , transformAction (transformInstanceRule instance_) == BuiltinAction BuiltinCompileC
+      , input <- transformInstanceInputs instance_
+      , fileRefPath input == cSource
+      , output <- transformInstanceOutputs instance_
+      ] of
+    [output] -> pure output
+    xs -> fail $ "expected one C object output, got " <> show (length xs)
+
+  cObjectContent <- readFile (fileRefPath cObject)
+  assertEqual "compile-c command executable"
+    "executable: cc"
+    (head (lines cObjectContent))
+  assertBool "compile-c command includes input and output arguments" $
+    ("arguments: -c " <> cSource <> " -o " <> fileRefPath cObject)
+      `elem` lines cObjectContent
+
+contextStampRunner :: ShakeTransformRunner
+contextStampRunner context rule inputs outputs =
+  mapM_ writeOutput outputs
+  where
+    writeOutput output = do
+      liftIO $ Directory.createDirectoryIfMissing True (takeDirectory (fileRefPath output))
+      writeFileChanged (fileRefPath output) $ unlines
+        [ "transform: " <> transformNameTextString (transformName rule)
+        , "target: " <> targetNameTextString (ruleContextTargetName context)
+        , "style: " <> buildStyleTextString (ruleContextBuildStyle context)
+        , "inputs: " <> show (length inputs)
+        ]
+
+recordingCommandRunner :: CommandRunner
+recordingCommandRunner context commandSpec =
+  mapM_ writeOutput (commandOutputs commandSpec)
+  where
+    writeOutput output = do
+      liftIO $ Directory.createDirectoryIfMissing True (takeDirectory (fileRefPath output))
+      writeFileChanged (fileRefPath output) $ unlines
+        [ "executable: " <> commandExecutable commandSpec
+        , "arguments: " <> unwords (commandArguments commandSpec)
+        , "target: " <> targetNameTextString (ruleContextTargetName context)
+        , "style: " <> buildStyleTextString (ruleContextBuildStyle context)
+        , "inputs: " <> show (length (commandInputs commandSpec))
+        , "outputs: " <> show (length (commandOutputs commandSpec))
+        ]
+
+transformNameTextString :: TransformName -> String
+transformNameTextString (TransformName name) =
+  Text.unpack name
+
+targetNameTextString :: TargetName -> String
+targetNameTextString (TargetName name) =
+  Text.unpack name
+
+buildStyleTextString :: BuildStyle -> String
+buildStyleTextString (BuildStyle name) =
+  Text.unpack name
 
 testDuplicateTargetsFail :: IO ()
 testDuplicateTargetsFail =
