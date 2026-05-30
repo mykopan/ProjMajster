@@ -236,7 +236,7 @@ demoProject = project "Demo" $ do
       c "**/*.c"
       cxx "**/*.cpp"
       customSource "json" "**/*.json"
-    transform jsonToC
+    transform testJsonToC
     includeDirs ["src/foo/include"]
     usesLibs ["m"]
     install RuntimeLibDir
@@ -275,6 +275,15 @@ linuxX86_64 = Platform
   { platformOS = Linux
   , platformArch = X86_64
   , platformAspects = []
+  }
+
+testJsonToC :: TransformRule
+testJsonToC = TransformRule
+  { transformName = TransformName "json-to-c"
+  , transformKind = MapTransform
+  , transformInput = InputLanguage (CustomLanguage "json")
+  , transformOutput = OutputGeneratedSource C ".c"
+  , transformAction = CustomAction "json-to-c"
   }
 
 assertEqual :: (Eq a, Show a) => String -> a -> a -> IO ()

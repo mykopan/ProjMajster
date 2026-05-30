@@ -7,7 +7,6 @@ module ProjMajster.DSL.Target
   , aorpModule
   , sources
   , transform
-  , jsonToC
   , install
   ) where
 
@@ -56,15 +55,6 @@ transform rule = TargetM $
     { targetDraftTransforms =
         targetDraftTransforms draft ++ [rule]
     }
-
-jsonToC :: TransformRule
-jsonToC = TransformRule
-  { transformName = TransformName "json-to-c"
-  , transformKind = MapTransform
-  , transformInput = InputLanguage (CustomLanguage "json")
-  , transformOutput = OutputGeneratedSource C ".c"
-  , transformAction = CustomAction "json-to-c"
-  }
 
 install :: InstallDir -> TargetM ()
 install dir = TargetM $
