@@ -1,6 +1,9 @@
 # ProjMajster Architecture
 
-This document maps the MVP design to Haskell modules and data flow.
+This document maps the MVP design to Haskell modules and data flow. Shake is
+the execution engine, not merely a Make-like file-rule syntax. The architecture
+should use Shake's strengths: dynamic dependencies, tracked directory queries,
+generated dependency files, caches, oracles, parallelism, and minimal rebuilds.
 
 ## Data Flow
 
@@ -17,6 +20,18 @@ DSL declarations
 The public DSL should collect intent. It should not emit Shake rules directly.
 Shake integration should happen only after the build has been resolved into an
 internal plan.
+
+`BuildPlan` is mostly static: it contains resolved targets, settings,
+dependency declarations, and toolchain choices. `BuildGraph` is concrete enough
+to emit Shake rules, but it must not pretend that every dependency is known
+up front. Some dependencies are discovered during Shake actions, for example C
+and C++ header dependencies emitted by the compiler.
+
+The backend should therefore preserve two kinds of dependencies:
+
+- planned dependencies: files and targets known before rules run;
+- discovered dependencies: files, directory contents, or oracle answers found
+  while running an action and then recorded by Shake.
 
 ## Layer Boundaries
 
@@ -74,7 +89,7 @@ Purpose:
 
 - Validate DSL declarations.
 - Resolve settings layers.
-- Resolve source sets into source files.
+- Resolve static source-set declarations.
 - Resolve internal target dependencies.
 - Ask dependency resolvers for external binary dependencies.
 - Produce a `BuildPlan`.
@@ -83,6 +98,17 @@ Must not:
 
 - Emit Shake rules directly.
 - Run compile/link actions.
+- Depend on generated files discovered during the same build.
+
+Source discovery has two modes:
+
+- static discovery during planning, for sources that are intentionally fixed;
+- Shake-tracked discovery in the backend, for globbed source sets that should
+  rebuild when files are added or removed.
+
+Use Shake-tracked discovery for normal source globs. Do not scan generated
+output directories as source directories, because those contents can change
+while the build is running.
 
 Suggested modules:
 
@@ -104,6 +130,8 @@ Purpose:
 - Attach file roles and target ownership.
 - Apply transforms such as C compile, C++ compile, link program, link shared
   library, and custom code generation.
+- Represent which dependencies are planned and which will be discovered by the
+  backend.
 
 Suggested modules:
 
@@ -186,6 +214,9 @@ Purpose:
 
 - Convert the build graph to Shake rules.
 - Provide caches, change tracking, and command execution.
+- Use Shake-tracked source discovery for source globs.
+- Record compiler-discovered dependencies such as C/C++ headers.
+- Provide custom rules/oracles for non-file dependencies when needed.
 - Keep Shake-specific code contained.
 
 Suggested modules:
@@ -194,7 +225,22 @@ Suggested modules:
 ProjMajster.Backend.Shake
 ProjMajster.Backend.Shake.Rules
 ProjMajster.Backend.Shake.Command
+ProjMajster.Backend.Shake.Discovery
+ProjMajster.Backend.Shake.Oracle
 ```
+
+The backend is allowed to expose `Action` to low-level transform
+implementations. The public DSL should not require users to write `Action`
+code for common cases, but advanced custom transforms need that escape hatch.
+
+The backend should prefer Shake primitives for correctness:
+
+- `need` for planned file dependencies;
+- tracked directory queries for source globs;
+- makefile-style dependency loading for C/C++ header dependencies;
+- caches for expensive pure or action-based lookups;
+- oracles for dependencies on non-file facts such as compiler version,
+  toolchain probe results, or remote package metadata.
 
 ## Key Types Sketch
 
@@ -220,12 +266,22 @@ data BuildGraph = BuildGraph
   }
 
 data BuildStep = BuildStep
-  { stepName    :: StepName
-  , stepInputs  :: [FileRef]
-  , stepOutputs :: [FileRef]
-  , stepAction  :: StepAction
+  { stepName       :: StepName
+  , stepInputs     :: [FileRef]
+  , stepOutputs    :: [FileRef]
+  , stepDiscovered :: [Discovery]
+  , stepAction     :: StepAction
   }
+
+data Discovery
+  = DiscoverMakefileDeps FilePath
+  | DiscoverSourceGlob SourceGlob
+  | DiscoverOracle OracleKey
 ```
+
+The exact representation can change, but the distinction should remain:
+planned inputs are known before rule execution, discovered dependencies are
+registered during `Action`.
 
 ## Error Strategy
 
@@ -242,17 +298,30 @@ Prefer early validation errors during planning:
 Shake-time failures should mostly be real execution failures, not configuration
 errors that could have been detected earlier.
 
+Some dependencies can only be validated at Shake time. Examples:
+
+- a generated makefile dependency file is malformed;
+- a compiler reports headers after preprocessing;
+- a source glob changes between builds;
+- an oracle query depends on the installed toolchain.
+
+These are legitimate Shake-time concerns and should be handled in backend or
+transform code.
+
 ## MVP Implementation Milestones
 
 1. Core types compile.
 2. DSL can declare a project with one shared library and one program.
 3. Planning validates declarations and resolves settings.
-4. Graph lowering produces compile and link steps.
+4. Graph lowering produces compile and link steps with planned/discovered
+   dependency metadata.
 5. Shake backend can run those steps.
-6. Internal dependency inference works through `usesLibs`.
-7. Remote binary dependency resolver provides include/library dirs.
-8. Minimal install staging works.
-9. A small Vodi subset builds.
+6. C/C++ compile steps record generated header dependencies.
+7. Shake-tracked source globs rebuild when source files are added or removed.
+8. Internal dependency inference works through `usesLibs`.
+9. Remote binary dependency resolver provides include/library dirs.
+10. Minimal install staging works.
+11. A small Vodi subset builds.
 
 ## Design Rules
 
@@ -263,3 +332,7 @@ errors that could have been detected earlier.
 - External dependency identity and dependency resolution mechanism must remain
   separate.
 - Shake should be a backend detail, not the core domain model.
+- Do not force all dependencies to be known during planning. Use Shake dynamic
+  dependencies where that is the correct model.
+- Common users should not need to understand Shake, but advanced transforms
+  should be able to use Shake `Action` deliberately.
