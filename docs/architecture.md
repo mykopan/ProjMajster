@@ -248,7 +248,7 @@ The backend should prefer Shake primitives for correctness:
 data BuildContext = BuildContext
   { buildPlatform  :: Platform
   , targetPlatform :: Platform
-  , buildStyle     :: BuildStyle
+  , contextBuildStyle :: BuildStyle
   , buildDirs      :: BuildDirs
   , toolchain      :: Toolchain
   }

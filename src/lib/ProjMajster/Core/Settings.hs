@@ -60,12 +60,12 @@ data CommonSettings = CommonSettings
   } deriving (Eq, Show)
 
 data CSettings = CSettings
-  { cStandard :: Maybe Text
+  { cSettingsStandard :: Maybe Text
   , cRawOptions :: [RawOption]
   } deriving (Eq, Show)
 
 data CxxSettings = CxxSettings
-  { cxxStandard :: Maybe Text
+  { cxxSettingsStandard :: Maybe Text
   , cxxRawOptions :: [RawOption]
   } deriving (Eq, Show)
 
@@ -75,7 +75,7 @@ data LinkMode
   deriving (Eq, Ord, Show)
 
 data LinkSettings = LinkSettings
-  { linkMode :: Maybe LinkMode
+  { linkSettingsMode :: Maybe LinkMode
   , linkLibraries :: [LibraryName]
   , linkLibraryDirs :: [FilePath]
   , linkRawOptions :: [RawOption]
@@ -100,19 +100,19 @@ emptyCommonSettings = CommonSettings
 
 emptyCSettings :: CSettings
 emptyCSettings = CSettings
-  { cStandard = Nothing
+  { cSettingsStandard = Nothing
   , cRawOptions = []
   }
 
 emptyCxxSettings :: CxxSettings
 emptyCxxSettings = CxxSettings
-  { cxxStandard = Nothing
+  { cxxSettingsStandard = Nothing
   , cxxRawOptions = []
   }
 
 emptyLinkSettings :: LinkSettings
 emptyLinkSettings = LinkSettings
-  { linkMode = Nothing
+  { linkSettingsMode = Nothing
   , linkLibraries = []
   , linkLibraryDirs = []
   , linkRawOptions = []

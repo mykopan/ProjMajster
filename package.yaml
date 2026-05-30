@@ -19,6 +19,7 @@ dependencies:
   - base >= 4.14 && < 5
   - containers
   - filepath
+  - mtl
   - text
 
 library:
@@ -35,8 +36,16 @@ library:
     - ProjMajster.Core.Settings
     - ProjMajster.Core.SourceSet
     - ProjMajster.Core.Target
+    - ProjMajster.DSL
+    - ProjMajster.DSL.Dependency
+    - ProjMajster.DSL.Project
+    - ProjMajster.DSL.Settings
+    - ProjMajster.DSL.SourceSet
+    - ProjMajster.DSL.Target
     - ProjMajster.Graph
     - ProjMajster.Plan
+  other-modules:
+    - ProjMajster.DSL.Internal
 
 tests:
   projmajster-test:

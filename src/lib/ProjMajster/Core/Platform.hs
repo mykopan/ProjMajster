@@ -33,5 +33,5 @@ data Platform = Platform
 data BuildContext = BuildContext
   { buildPlatform :: Platform
   , targetPlatform :: Platform
-  , buildStyle :: BuildStyle
+  , contextBuildStyle :: BuildStyle
   } deriving (Eq, Show)
