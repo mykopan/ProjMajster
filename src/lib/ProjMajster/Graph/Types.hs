@@ -1,5 +1,7 @@
 module ProjMajster.Graph.Types
   ( BuildGraph(..)
+  , SourceDiscovery(..)
+  , TargetBuild(..)
   , FileRef(..)
   , StepName(..)
   , BuildStep(..)
@@ -12,12 +14,26 @@ import Data.Text (Text)
 
 import ProjMajster.Core.FileRole (FileRole)
 import ProjMajster.Core.SourceSet (Language)
-import ProjMajster.Core.Target (TargetName)
+import ProjMajster.Core.Target (TargetKind, TargetName)
 import ProjMajster.Core.Transform (TransformRule)
 
 data BuildGraph = BuildGraph
-  { graphFiles :: [FileRef]
-  , graphSteps :: [BuildStep]
+  { graphSources :: [SourceDiscovery]
+  , graphTargets :: [TargetBuild]
+  } deriving (Eq, Show)
+
+data SourceDiscovery = SourceDiscovery
+  { sourceDiscoveryOwner :: TargetName
+  , sourceDiscoveryGlob :: SourceGlob
+  } deriving (Eq, Ord, Show)
+
+data TargetBuild = TargetBuild
+  { targetBuildName :: TargetName
+  , targetBuildKind :: TargetKind
+  , targetBuildSources :: [SourceDiscovery]
+  , targetBuildTransforms :: [TransformRule]
+  , targetBuildDependencies :: [TargetName]
+  , targetBuildOutput :: FileRef
   } deriving (Eq, Show)
 
 data FileRef = FileRef

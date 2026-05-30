@@ -134,73 +134,47 @@ testGraphBuildsCompileAndLinkSteps = do
 
   let graph = buildGraph plan
 
-  assertEqual "graph action sequence"
-    [ CustomAction "discover-sources"
-    , CustomAction "discover-sources"
-    , CustomAction "discover-sources"
-    , CustomAction "discover-sources"
-    , CustomAction "json-to-c"
-    , BuiltinAction BuiltinCompileC
+  assertEqual "source discovery count"
+    4
+    (length (graphSources graph))
+
+  (libBuild, appBuild) <- case graphTargets graph of
+    [libTarget, appTarget] -> pure (libTarget, appTarget)
+    targets -> fail $
+      "expected exactly two target builds, got " <> show (length targets)
+
+  assertEqual "library transform pipeline"
+    [ CustomAction "json-to-c"
     , BuiltinAction BuiltinCompileC
     , BuiltinAction BuiltinCompileCxx
     , BuiltinAction BuiltinLink
-    , BuiltinAction BuiltinCompileC
+    ]
+    (map transformAction (targetBuildTransforms libBuild))
+
+  assertEqual "app transform pipeline"
+    [ BuiltinAction BuiltinCompileC
+    , BuiltinAction BuiltinCompileCxx
     , BuiltinAction BuiltinLink
     ]
-    (map (transformAction . buildStepTransform) (graphSteps graph))
+    (map transformAction (targetBuildTransforms appBuild))
 
-  assertEqual "graph file roles"
-    [ SourceFile
-    , SourceFile
-    , SourceFile
-    , GeneratedSource
-    , ObjectFile
-    , ObjectFile
-    , ObjectFile
-    , SharedObject
-    , SourceFile
-    , ObjectFile
-    , ProgramBinary
-    ]
-    (map fileRefRole (graphFiles graph))
+  assertEqual "app target build depends on library target"
+    [TargetName "foo"]
+    (targetBuildDependencies appBuild)
 
-  assertEqual "source glob discovery count"
-    4
-    (length
-      [ ()
-      | step <- graphSteps graph
-      , DiscoverSourceGlob _ <- buildStepDiscovered step
-      ])
+  assertEqual "library output role"
+    SharedObject
+    (fileRefRole (targetBuildOutput libBuild))
 
-  assertEqual "makefile deps discovery count"
-    4
-    (length
-      [ ()
-      | step <- graphSteps graph
-      , DiscoverMakefileDeps _ <- buildStepDiscovered step
-      ])
+  assertEqual "app output role"
+    ProgramBinary
+    (fileRefRole (targetBuildOutput appBuild))
 
-  appLinkStep <- case
-      [ step
-      | step <- graphSteps graph
-      , transformAction (buildStepTransform step) == BuiltinAction BuiltinLink
-      , any ((Just (TargetName "app") ==) . fileRefOwner)
-          (buildStepOutputs step)
-      ] of
-    [step] -> pure step
-    steps -> fail $
-      "expected exactly one app link step, got " <> show (length steps)
-
-  assertEqual "app link inputs include internal library output"
-    [ObjectFile, SharedObject]
-    (map fileRefRole (buildStepInputs appLinkStep))
-
-  assertEqual "json transform produces generated C"
-    [Just C]
-    [ fileRefLanguage output
-    | step <- graphSteps graph
-    , transformAction (buildStepTransform step) == CustomAction "json-to-c"
-    , output <- buildStepOutputs step
+  assertEqual "json transform stays in graph as rule"
+    [OutputGeneratedSource C ".c"]
+    [ transformOutput rule
+    | rule <- targetBuildTransforms libBuild
+    , transformAction rule == CustomAction "json-to-c"
     ]
 
 testDuplicateTargetsFail :: IO ()
