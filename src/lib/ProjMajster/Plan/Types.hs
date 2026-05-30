@@ -16,6 +16,7 @@ data ResolvedTarget = ResolvedTarget
   { resolvedTargetName :: TargetName
   , resolvedTargetKind :: TargetKind
   , resolvedTargetSourceSets :: [SourceSet]
+  , resolvedTargetTransforms :: [TransformRule]
   , resolvedTargetSettings :: BuildSettings
   , resolvedTargetDeps :: [Dependency]
   , resolvedTargetInstallSpecs :: [InstallSpec]

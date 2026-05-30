@@ -36,6 +36,7 @@ library:
     - ProjMajster.Core.Settings
     - ProjMajster.Core.SourceSet
     - ProjMajster.Core.Target
+    - ProjMajster.Core.Transform
     - ProjMajster.DSL
     - ProjMajster.DSL.Dependency
     - ProjMajster.DSL.Project

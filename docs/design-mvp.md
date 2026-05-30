@@ -33,7 +33,8 @@ These concepts are exposed to build authors.
 - `BuildStyle`: a named build-settings layer such as `debug` or `release`.
 - `Toolchain`: commands and translation logic for compilers/linkers.
 - `InstallSpec`: where meaningful outputs should be installed or packaged.
-- `Transform`: reusable custom build logic such as code generation.
+- `Transform`: reusable build logic such as code generation, compilation, or
+  linking.
 
 ### Internal Planning Concepts
 
@@ -182,10 +183,13 @@ should add the build dependency automatically.
 Package dependencies and link libraries should remain separate concepts. A
 binary package may provide many link libraries.
 
-## Custom Transforms
+## Transforms
 
-Custom transforms are a first-class extension point. They should receive enough
-context to avoid global hacks.
+Transforms are the common model for both built-in and custom build logic. C
+compile, C++ compile, link, JSON code generation, resource compilation, and
+post-processing should all use the same mechanism.
+
+Transforms should receive enough context to avoid global hacks.
 
 Sketch:
 
@@ -203,6 +207,13 @@ data RuleContext = RuleContext
 
 Transforms should be reusable recipes that add build steps to the build graph.
 Raw Shake actions should remain available as an escape hatch.
+
+At minimum, the model distinguishes:
+
+- `MapTransform`: one input item to output item(s), for example `.json -> .c`
+  or `.c -> .o`;
+- `FoldTransform`: many input items to output item(s), for example objects plus
+  dependency outputs to a shared library or program.
 
 ## Packaging and Install
 
@@ -266,8 +277,8 @@ project "Vodi" $ do
 1. Define core data types for project, target, source set, settings, build styles,
    dependencies, and platform context.
 2. Implement planning from DSL declarations into a `BuildPlan`.
-3. Implement C/C++ source discovery and compile-step planning.
-4. Implement shared-library and program link-step planning.
+3. Implement source discovery and transform-based graph lowering.
+4. Implement built-in C/C++ compile and link transforms.
 5. Add remote binary dependency resolver.
 6. Add install intent and minimal staging/package support.
 7. Port a small Vodi subset.

@@ -8,6 +8,7 @@ module ProjMajster.Core
   , module ProjMajster.Core.Settings
   , module ProjMajster.Core.SourceSet
   , module ProjMajster.Core.Target
+  , module ProjMajster.Core.Transform
   ) where
 
 import ProjMajster.Core.BuildStyle
@@ -19,3 +20,4 @@ import ProjMajster.Core.Project
 import ProjMajster.Core.Settings
 import ProjMajster.Core.SourceSet
 import ProjMajster.Core.Target
+import ProjMajster.Core.Transform

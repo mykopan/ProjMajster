@@ -58,6 +58,7 @@ data TargetDraft = TargetDraft
   { targetDraftName :: TargetName
   , targetDraftKind :: TargetKind
   , targetDraftSourceSets :: [SourceSet]
+  , targetDraftTransforms :: [TransformRule]
   , targetDraftSettings :: BuildSettings
   , targetDraftInstallSpecs :: [InstallSpec]
   } deriving (Eq, Show)
@@ -67,6 +68,7 @@ emptyTargetDraft name kind = TargetDraft
   { targetDraftName = name
   , targetDraftKind = kind
   , targetDraftSourceSets = []
+  , targetDraftTransforms = []
   , targetDraftSettings = emptyBuildSettings
   , targetDraftInstallSpecs = []
   }

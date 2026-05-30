@@ -51,7 +51,7 @@ testDslBuildsProject = do
     (linkSettingsMode (linkSettings (targetSettings lib)))
 
   assertEqual "shared library source language"
-    [C, Cxx]
+    [C, Cxx, CustomLanguage "json"]
     [ sourcePatternLanguage pattern
     | sourceSet <- targetSourceSets lib
     , pattern <- sourceSetPatterns sourceSet
@@ -135,20 +135,26 @@ testGraphBuildsCompileAndLinkSteps = do
   let graph = buildGraph plan
 
   assertEqual "graph action sequence"
-    [ DiscoverSources
-    , DiscoverSources
-    , DiscoverSources
-    , Compile C
-    , Compile Cxx
-    , Compile C
-    , Link
-    , Link
+    [ CustomAction "discover-sources"
+    , CustomAction "discover-sources"
+    , CustomAction "discover-sources"
+    , CustomAction "discover-sources"
+    , CustomAction "json-to-c"
+    , BuiltinAction BuiltinCompileC
+    , BuiltinAction BuiltinCompileC
+    , BuiltinAction BuiltinCompileCxx
+    , BuiltinAction BuiltinLink
+    , BuiltinAction BuiltinCompileC
+    , BuiltinAction BuiltinLink
     ]
-    (map buildStepAction (graphSteps graph))
+    (map (transformAction . buildStepTransform) (graphSteps graph))
 
   assertEqual "graph file roles"
     [ SourceFile
     , SourceFile
+    , SourceFile
+    , GeneratedSource
+    , ObjectFile
     , ObjectFile
     , ObjectFile
     , SharedObject
@@ -159,7 +165,7 @@ testGraphBuildsCompileAndLinkSteps = do
     (map fileRefRole (graphFiles graph))
 
   assertEqual "source glob discovery count"
-    3
+    4
     (length
       [ ()
       | step <- graphSteps graph
@@ -167,7 +173,7 @@ testGraphBuildsCompileAndLinkSteps = do
       ])
 
   assertEqual "makefile deps discovery count"
-    3
+    4
     (length
       [ ()
       | step <- graphSteps graph
@@ -177,7 +183,7 @@ testGraphBuildsCompileAndLinkSteps = do
   appLinkStep <- case
       [ step
       | step <- graphSteps graph
-      , buildStepAction step == Link
+      , transformAction (buildStepTransform step) == BuiltinAction BuiltinLink
       , any ((Just (TargetName "app") ==) . fileRefOwner)
           (buildStepOutputs step)
       ] of
@@ -188,6 +194,14 @@ testGraphBuildsCompileAndLinkSteps = do
   assertEqual "app link inputs include internal library output"
     [ObjectFile, SharedObject]
     (map fileRefRole (buildStepInputs appLinkStep))
+
+  assertEqual "json transform produces generated C"
+    [Just C]
+    [ fileRefLanguage output
+    | step <- graphSteps graph
+    , transformAction (buildStepTransform step) == CustomAction "json-to-c"
+    , output <- buildStepOutputs step
+    ]
 
 testDuplicateTargetsFail :: IO ()
 testDuplicateTargetsFail =
@@ -221,6 +235,8 @@ demoProject = project "Demo" $ do
     sources "src/foo" $ do
       c "**/*.c"
       cxx "**/*.cpp"
+      customSource "json" "**/*.json"
+    transform jsonToC
     includeDirs ["src/foo/include"]
     usesLibs ["m"]
     install RuntimeLibDir

@@ -6,6 +6,8 @@ module ProjMajster.DSL.Target
   , sharedLibrary
   , aorpModule
   , sources
+  , transform
+  , jsonToC
   , install
   ) where
 
@@ -19,15 +21,19 @@ import ProjMajster.DSL.Internal
 
 program :: Text -> TargetM () -> ProjectM ()
 program name =
-  target (TargetName name) Program
+  target (TargetName name) Program [compileCTransform, compileCxxTransform, linkTransform]
 
 sharedLibrary :: Text -> TargetM () -> ProjectM ()
 sharedLibrary name =
-  target (TargetName name) (SharedLibrary NormalSharedLibrary)
+  target
+    (TargetName name)
+    (SharedLibrary NormalSharedLibrary)
+    [compileCTransform, compileCxxTransform, linkTransform]
 
 aorpModule :: Text -> TargetM () -> ProjectM ()
 aorpModule name =
   target (TargetName name) (SharedLibrary style)
+    [compileCTransform, compileCxxTransform, linkTransform]
   where
     style = PluginSharedLibrary PluginStyle
       { pluginFileNamePolicy = PlatformFileName name
@@ -44,6 +50,22 @@ sources baseDir body = TargetM $
   where
     sourceDraft = runSourceSetM baseDir body
 
+transform :: TransformRule -> TargetM ()
+transform rule = TargetM $
+  modify $ \draft -> draft
+    { targetDraftTransforms =
+        targetDraftTransforms draft ++ [rule]
+    }
+
+jsonToC :: TransformRule
+jsonToC = TransformRule
+  { transformName = TransformName "json-to-c"
+  , transformKind = MapTransform
+  , transformInput = InputLanguage (CustomLanguage "json")
+  , transformOutput = OutputGeneratedSource C ".c"
+  , transformAction = CustomAction "json-to-c"
+  }
+
 install :: InstallDir -> TargetM ()
 install dir = TargetM $
   modify $ \draft -> draft
@@ -56,14 +78,18 @@ install dir = TargetM $
         ]
     }
 
-target :: TargetName -> TargetKind -> TargetM () -> ProjectM ()
-target name kind body = ProjectM $
+target :: TargetName -> TargetKind -> [TransformRule] -> TargetM () -> ProjectM ()
+target name kind defaultTransforms body = ProjectM $
   modify $ \draft -> draft
     { projectDraftTargets =
         projectDraftTargets draft ++ [targetFromDraft targetDraft]
     }
   where
-    targetDraft = runTargetM name kind body
+    userDraft = runTargetM name kind body
+    targetDraft = userDraft
+      { targetDraftTransforms =
+          targetDraftTransforms userDraft ++ defaultTransforms
+      }
 
 sourceSetFromDraft :: SourceSetDraft -> SourceSet
 sourceSetFromDraft draft = SourceSet
@@ -76,6 +102,7 @@ targetFromDraft draft = Target
   { targetName = targetDraftName draft
   , targetKind = targetDraftKind draft
   , targetSourceSets = targetDraftSourceSets draft
+  , targetTransforms = targetDraftTransforms draft
   , targetSettings = setDefaultLinkMode (targetDraftKind draft)
       (targetDraftSettings draft)
   , targetInstallSpecs = targetDraftInstallSpecs draft
@@ -92,3 +119,30 @@ setDefaultLinkMode kind settings = settings
     defaultMode = case kind of
       Program -> Just LinkProgram
       SharedLibrary _ -> Just LinkShared
+
+compileCTransform :: TransformRule
+compileCTransform = TransformRule
+  { transformName = TransformName "compile-c"
+  , transformKind = MapTransform
+  , transformInput = InputLanguage C
+  , transformOutput = OutputObject
+  , transformAction = BuiltinAction BuiltinCompileC
+  }
+
+compileCxxTransform :: TransformRule
+compileCxxTransform = TransformRule
+  { transformName = TransformName "compile-cxx"
+  , transformKind = MapTransform
+  , transformInput = InputLanguage Cxx
+  , transformOutput = OutputObject
+  , transformAction = BuiltinAction BuiltinCompileCxx
+  }
+
+linkTransform :: TransformRule
+linkTransform = TransformRule
+  { transformName = TransformName "link"
+  , transformKind = FoldTransform
+  , transformInput = InputLinkInput
+  , transformOutput = OutputTargetBinary
+  , transformAction = BuiltinAction BuiltinLink
+  }

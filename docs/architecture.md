@@ -128,10 +128,13 @@ Purpose:
 - Lower `BuildPlan` into concrete file nodes and build steps.
 - Decide intermediate output paths.
 - Attach file roles and target ownership.
-- Apply transforms such as C compile, C++ compile, link program, link shared
-  library, and custom code generation.
+- Apply transform rules such as JSON code generation, C compile, C++ compile,
+  link program, link shared library, and custom project-specific generation.
 - Represent which dependencies are planned and which will be discovered by the
   backend.
+
+Compile and link are not special graph concepts. They are built-in transform
+rules. Custom transforms use the same representation.
 
 Suggested modules:
 
@@ -265,12 +268,24 @@ data BuildGraph = BuildGraph
   , graphSteps :: [BuildStep]
   }
 
+data TransformRule = TransformRule
+  { transformName   :: TransformName
+  , transformKind   :: TransformKind
+  , transformInput  :: InputSelector
+  , transformOutput :: OutputMapping
+  , transformAction :: TransformAction
+  }
+
+data TransformKind
+  = MapTransform
+  | FoldTransform
+
 data BuildStep = BuildStep
-  { stepName       :: StepName
-  , stepInputs     :: [FileRef]
-  , stepOutputs    :: [FileRef]
+  { stepName      :: StepName
+  , stepInputs    :: [FileRef]
+  , stepOutputs   :: [FileRef]
   , stepDiscovered :: [Discovery]
-  , stepAction     :: StepAction
+  , stepTransform :: TransformRule
   }
 
 data Discovery
@@ -282,6 +297,15 @@ data Discovery
 The exact representation can change, but the distinction should remain:
 planned inputs are known before rule execution, discovered dependencies are
 registered during `Action`.
+
+Examples:
+
+```text
+json-to-c  : MapTransform  JSON source -> generated C source
+compile-c  : MapTransform  C source -> object file
+compile-cxx: MapTransform  C++ source -> object file
+link       : FoldTransform object files + dependency outputs -> target binary
+```
 
 ## Error Strategy
 
@@ -313,10 +337,10 @@ transform code.
 1. Core types compile.
 2. DSL can declare a project with one shared library and one program.
 3. Planning validates declarations and resolves settings.
-4. Graph lowering produces compile and link steps with planned/discovered
-   dependency metadata.
+4. Graph lowering applies built-in and custom transform rules with
+   planned/discovered dependency metadata.
 5. Shake backend can run those steps.
-6. C/C++ compile steps record generated header dependencies.
+6. C/C++ compile transforms record generated header dependencies.
 7. Shake-tracked source globs rebuild when source files are added or removed.
 8. Internal dependency inference works through `usesLibs`.
 9. Remote binary dependency resolver provides include/library dirs.
@@ -336,3 +360,5 @@ transform code.
   dependencies where that is the correct model.
 - Common users should not need to understand Shake, but advanced transforms
   should be able to use Shake `Action` deliberately.
+- Built-in C/C++ compile and link behavior should be represented as transform
+  rules, not as a separate mechanism from custom transforms.

@@ -66,6 +66,7 @@ resolveTarget internalTargetNames projectSettings target = ResolvedTarget
   { resolvedTargetName = targetName target
   , resolvedTargetKind = targetKind target
   , resolvedTargetSourceSets = targetSourceSets target
+  , resolvedTargetTransforms = targetTransforms target
   , resolvedTargetSettings =
       projectSettings <> targetSettings target
   , resolvedTargetDeps =

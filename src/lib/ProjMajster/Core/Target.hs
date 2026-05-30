@@ -15,6 +15,7 @@ import Data.Text (Text)
 import ProjMajster.Core.Install (InstallDir, InstallSpec)
 import ProjMajster.Core.Settings (BuildSettings)
 import ProjMajster.Core.SourceSet (SourceSet)
+import ProjMajster.Core.Transform (TransformRule)
 
 newtype TargetName = TargetName
   { targetNameText :: Text
@@ -51,6 +52,7 @@ data Target = Target
   { targetName :: TargetName
   , targetKind :: TargetKind
   , targetSourceSets :: [SourceSet]
+  , targetTransforms :: [TransformRule]
   , targetSettings :: BuildSettings
   , targetInstallSpecs :: [InstallSpec]
   } deriving (Eq, Show)

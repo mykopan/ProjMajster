@@ -3,7 +3,6 @@ module ProjMajster.Graph.Types
   , FileRef(..)
   , StepName(..)
   , BuildStep(..)
-  , StepAction(..)
   , Discovery(..)
   , SourceGlob(..)
   , OracleKey(..)
@@ -14,6 +13,7 @@ import Data.Text (Text)
 import ProjMajster.Core.FileRole (FileRole)
 import ProjMajster.Core.SourceSet (Language)
 import ProjMajster.Core.Target (TargetName)
+import ProjMajster.Core.Transform (TransformRule)
 
 data BuildGraph = BuildGraph
   { graphFiles :: [FileRef]
@@ -23,6 +23,7 @@ data BuildGraph = BuildGraph
 data FileRef = FileRef
   { fileRefPath :: FilePath
   , fileRefRole :: FileRole
+  , fileRefLanguage :: Maybe Language
   , fileRefOwner :: Maybe TargetName
   } deriving (Eq, Ord, Show)
 
@@ -35,15 +36,8 @@ data BuildStep = BuildStep
   , buildStepInputs :: [FileRef]
   , buildStepOutputs :: [FileRef]
   , buildStepDiscovered :: [Discovery]
-  , buildStepAction :: StepAction
+  , buildStepTransform :: TransformRule
   } deriving (Eq, Show)
-
-data StepAction
-  = DiscoverSources
-  | Compile Language
-  | Link
-  | CustomStep Text
-  deriving (Eq, Ord, Show)
 
 data Discovery
   = DiscoverSourceGlob SourceGlob
