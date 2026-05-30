@@ -18,6 +18,7 @@ import ProjMajster.Recipe
 
 data TransformInstance = TransformInstance
   { transformInstanceTarget :: TargetName
+  , transformInstanceRuleContext :: RuleContext
   , transformInstanceRule :: TransformRule
   , transformInstanceInputs :: [FileRef]
   , transformInstanceOutputs :: [FileRef]
@@ -154,6 +155,7 @@ mapTransformInstance
   -> TransformInstance
 mapTransformInstance context target rule input = TransformInstance
   { transformInstanceTarget = targetRecipeName target
+  , transformInstanceRuleContext = ruleContext context target
   , transformInstanceRule = rule
   , transformInstanceInputs = [input]
   , transformInstanceOutputs =
@@ -166,11 +168,23 @@ foldTransformInstance
   -> TransformRule
   -> [FileRef]
   -> TransformInstance
-foldTransformInstance _context target rule inputs = TransformInstance
+foldTransformInstance context target rule inputs = TransformInstance
   { transformInstanceTarget = targetRecipeName target
+  , transformInstanceRuleContext = ruleContext context target
   , transformInstanceRule = rule
   , transformInstanceInputs = inputs
   , transformInstanceOutputs = [foldTransformOutput target rule]
+  }
+
+ruleContext :: BuildContext -> TargetRecipe -> RuleContext
+ruleContext context target = RuleContext
+  { ruleContextTargetName = targetRecipeName target
+  , ruleContextTargetKind = targetRecipeKind target
+  , ruleContextTargetOutput = targetRecipeOutput target
+  , ruleContextBuildPlatform = buildPlatform context
+  , ruleContextTargetPlatform = targetPlatform context
+  , ruleContextBuildStyle = contextBuildStyle context
+  , ruleContextBuildDirs = contextBuildDirs context
   }
 
 matchesInput :: InputSelector -> FileRef -> Bool

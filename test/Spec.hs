@@ -6,6 +6,7 @@ import Control.Exception (catch)
 import Control.Monad (unless)
 import Data.List (sort)
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import Development.Shake
 import Development.Shake.FilePath
 import qualified System.Directory as Directory
@@ -309,6 +310,20 @@ testMapTransformPlanning = do
       , let role = fileRefRole output
       ])
 
+  assertEqual "transform rule context target"
+    [TargetName "foo"]
+    (unique
+      [ ruleContextTargetName (transformInstanceRuleContext instance_)
+      | instance_ <- instances
+      ])
+
+  assertEqual "transform rule context build style"
+    [release]
+    (unique
+      [ ruleContextBuildStyle (transformInstanceRuleContext instance_)
+      | instance_ <- instances
+      ])
+
   assertEqual "generated c participates in compile c"
     [Just C]
     [ fileRefLanguage input
@@ -357,6 +372,10 @@ countAction transformAction' instances =
     | instance_ <- instances
     , transformAction (transformInstanceRule instance_) == transformAction'
     ]
+
+unique :: Ord a => [a] -> [a]
+unique =
+  Set.toList . Set.fromList
 
 testShakeTransformInstanceRules :: IO ()
 testShakeTransformInstanceRules = do

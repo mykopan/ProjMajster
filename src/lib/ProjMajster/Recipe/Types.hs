@@ -1,12 +1,15 @@
 module ProjMajster.Recipe.Types
   ( BuildRecipe(..)
+  , RuleContext(..)
   , SourceDiscovery(..)
   , TargetRecipe(..)
   , FileRef(..)
   , SourceGlob(..)
   ) where
 
+import ProjMajster.Core.BuildStyle (BuildStyle)
 import ProjMajster.Core.FileRole (FileRole)
+import ProjMajster.Core.Platform (BuildDirs, Platform)
 import ProjMajster.Core.SourceSet (Language)
 import ProjMajster.Core.Target (TargetKind, TargetName)
 import ProjMajster.Core.Transform (TransformRule)
@@ -28,6 +31,16 @@ data TargetRecipe = TargetRecipe
   , targetRecipeTransforms :: [TransformRule]
   , targetRecipeDependencies :: [TargetName]
   , targetRecipeOutput :: FileRef
+  } deriving (Eq, Show)
+
+data RuleContext = RuleContext
+  { ruleContextTargetName :: TargetName
+  , ruleContextTargetKind :: TargetKind
+  , ruleContextTargetOutput :: FileRef
+  , ruleContextBuildPlatform :: Platform
+  , ruleContextTargetPlatform :: Platform
+  , ruleContextBuildStyle :: BuildStyle
+  , ruleContextBuildDirs :: BuildDirs
   } deriving (Eq, Show)
 
 data FileRef = FileRef

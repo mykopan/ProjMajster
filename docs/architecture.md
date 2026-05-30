@@ -281,6 +281,16 @@ data TargetRecipe = TargetRecipe
   , targetRecipeOutput       :: FileRef
   }
 
+data RuleContext = RuleContext
+  { ruleContextTargetName     :: TargetName
+  , ruleContextTargetKind     :: TargetKind
+  , ruleContextTargetOutput   :: FileRef
+  , ruleContextBuildPlatform  :: Platform
+  , ruleContextTargetPlatform :: Platform
+  , ruleContextBuildStyle     :: BuildStyle
+  , ruleContextBuildDirs      :: BuildDirs
+  }
+
 data TransformRule = TransformRule
   { transformName   :: TransformName
   , transformKind   :: TransformKind
@@ -296,7 +306,8 @@ data TransformKind
 
 The exact representation can change, but the distinction should remain:
 `BuildRecipe` is a declarative graph of source discovery and target transform
-pipelines. Backend-specific execution instances are derived later.
+pipelines. `RuleContext` is the per-target execution context passed to concrete
+transform instances. Backend-specific execution instances are derived later.
 
 Examples:
 

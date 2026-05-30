@@ -194,18 +194,20 @@ Sketch:
 
 ```haskell
 data RuleContext = RuleContext
-  { ctxTarget         :: TargetInfo
-  , ctxBuildPlatform  :: Platform
-  , ctxTargetPlatform :: Platform
-  , ctxBuildStyle     :: BuildStyle
-  , ctxToolchain      :: Toolchain
-  , ctxDirs           :: BuildDirs
-  , ctxDeps           :: ResolvedDeps
+  { ruleContextTargetName     :: TargetName
+  , ruleContextTargetKind     :: TargetKind
+  , ruleContextTargetOutput   :: FileRef
+  , ruleContextBuildPlatform  :: Platform
+  , ruleContextTargetPlatform :: Platform
+  , ruleContextBuildStyle     :: BuildStyle
+  , ruleContextBuildDirs      :: BuildDirs
   }
 ```
 
 Transforms should be reusable recipes that add build steps to the build graph.
-Raw Shake actions should remain available as an escape hatch.
+Toolchain and dependency usage metadata can be added to this context when those
+concepts become concrete. Raw Shake actions should remain available as an
+escape hatch.
 
 At minimum, the model distinguishes:
 
