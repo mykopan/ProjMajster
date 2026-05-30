@@ -2,8 +2,9 @@
 
 module Main (main) where
 
-import Control.Monad (unless)
 import Control.Exception (catch)
+import Control.Monad (unless)
+import Data.List (sort)
 import qualified Data.Map.Strict as Map
 import Development.Shake
 import Development.Shake.FilePath
@@ -17,6 +18,7 @@ main = do
   testPlanningResolvesProject
   testGraphBuildsCompileAndLinkSteps
   testShakeSourceDiscovery
+  testMapTransformPlanning
   testDuplicateTargetsFail
   testUnknownBuildStyleFails
 
@@ -244,6 +246,116 @@ testShakeSourceDiscovery = do
         }
     ]
     discovered
+
+testMapTransformPlanning :: IO ()
+testMapTransformPlanning = do
+  plan <- assertRight "resolve release project" $
+    resolveProject releaseContext demoProject
+  let graph = buildGraph plan
+
+  libBuild <- case graphTargets graph of
+    libTarget : _ -> pure libTarget
+    [] -> fail "expected at least one target build"
+  let reorderedLibBuild = libBuild
+        { targetBuildTransforms =
+            reorderForClosureTest (targetBuildTransforms libBuild)
+        }
+  let dependencyOutput = FileRef
+        { fileRefPath = "_build/product/libdep.so"
+        , fileRefRole = SharedObject
+        , fileRefLanguage = Nothing
+        , fileRefOwner = Just (TargetName "dep")
+        }
+
+  let discovered =
+        [ DiscoveredSource
+            { discoveredSourceOwner = TargetName "foo"
+            , discoveredSourceBaseDir = "src/foo"
+            , discoveredSourcePath = "config.json"
+            , discoveredSourceLanguage = CustomLanguage "json"
+            }
+        , DiscoveredSource
+            { discoveredSourceOwner = TargetName "foo"
+            , discoveredSourceBaseDir = "src/foo"
+            , discoveredSourcePath = "main.c"
+            , discoveredSourceLanguage = C
+            }
+        , DiscoveredSource
+            { discoveredSourceOwner = TargetName "foo"
+            , discoveredSourceBaseDir = "src/foo"
+            , discoveredSourcePath = "main.cpp"
+            , discoveredSourceLanguage = Cxx
+            }
+        ]
+
+  let instances =
+        planTargetTransforms releaseContext reorderedLibBuild discovered [dependencyOutput]
+
+  assertEqual "target transform action counts"
+    [ (BuiltinAction BuiltinCompileC, 2)
+    , (BuiltinAction BuiltinCompileCxx, 1)
+    , (BuiltinAction BuiltinLink, 1)
+    , (CustomAction "json-to-c", 1)
+    ]
+    (actionCounts instances)
+
+  assertEqual "target transform output roles"
+    (sort [GeneratedSource, ObjectFile, ObjectFile, ObjectFile, SharedObject])
+    (sort
+      [ role
+      | instance_ <- instances
+      , output <- transformInstanceOutputs instance_
+      , let role = fileRefRole output
+      ])
+
+  assertEqual "generated c participates in compile c"
+    [Just C]
+    [ fileRefLanguage input
+    | instance_ <- instances
+    , transformAction (transformInstanceRule instance_) == BuiltinAction BuiltinCompileC
+    , input <- transformInstanceInputs instance_
+    , fileRefRole input == GeneratedSource
+    ]
+
+  linkInstance <- case
+      [ instance_
+      | instance_ <- instances
+      , transformAction (transformInstanceRule instance_) == BuiltinAction BuiltinLink
+      ] of
+    [instance_] -> pure instance_
+    xs -> fail $ "expected one link instance, got " <> show (length xs)
+
+  assertEqual "link inputs include objects and dependency output"
+    [ObjectFile, ObjectFile, ObjectFile, SharedObject]
+    (sort (map fileRefRole (transformInstanceInputs linkInstance)))
+
+reorderForClosureTest :: [TransformRule] -> [TransformRule]
+reorderForClosureTest rules =
+  filter ((BuiltinAction BuiltinLink ==) . transformAction) rules <>
+  filter ((BuiltinAction BuiltinCompileC ==) . transformAction) rules <>
+  filter ((CustomAction "json-to-c" ==) . transformAction) rules <>
+  filter ((BuiltinAction BuiltinCompileC /=) . transformAction)
+    (filter ((CustomAction "json-to-c" /=) . transformAction)
+      (filter ((BuiltinAction BuiltinLink /=) . transformAction) rules))
+
+actionCounts :: [TransformInstance] -> [(TransformAction, Int)]
+actionCounts instances =
+  [ (transformAction', countAction transformAction' instances)
+  | transformAction' <-
+      [ BuiltinAction BuiltinCompileC
+      , BuiltinAction BuiltinCompileCxx
+      , BuiltinAction BuiltinLink
+      , CustomAction "json-to-c"
+      ]
+  ]
+
+countAction :: TransformAction -> [TransformInstance] -> Int
+countAction transformAction' instances =
+  length
+    [ ()
+    | instance_ <- instances
+    , transformAction (transformInstanceRule instance_) == transformAction'
+    ]
 
 testDuplicateTargetsFail :: IO ()
 testDuplicateTargetsFail =

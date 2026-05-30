@@ -30,6 +30,7 @@ library:
     - ProjMajster
     - ProjMajster.Backend.Shake
     - ProjMajster.Backend.Shake.SourceDiscovery
+    - ProjMajster.Backend.Shake.Transform
     - ProjMajster.Core
     - ProjMajster.Core.BuildStyle
     - ProjMajster.Core.Dependency
