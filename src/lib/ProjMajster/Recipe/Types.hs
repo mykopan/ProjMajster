@@ -4,13 +4,12 @@ module ProjMajster.Recipe.Types
   , SourceDiscovery(..)
   , TargetRecipe(..)
   , FileRef(..)
-  , SourceGlob(..)
   ) where
 
 import ProjMajster.Core.BuildStyle (BuildStyle)
 import ProjMajster.Core.FileRole (FileRole)
 import ProjMajster.Core.Platform (BuildDirs, Platform)
-import ProjMajster.Core.SourceSet (Language)
+import ProjMajster.Core.SourceSet (Language, SourcePattern)
 import ProjMajster.Core.Target (TargetKind, TargetName)
 import ProjMajster.Core.Transform (TransformRule)
 
@@ -21,7 +20,7 @@ data BuildRecipe = BuildRecipe
 
 data SourceDiscovery = SourceDiscovery
   { sourceDiscoveryOwner :: TargetName
-  , sourceDiscoveryGlob :: SourceGlob
+  , sourceDiscoveryPattern :: SourcePattern
   } deriving (Eq, Ord, Show)
 
 data TargetRecipe = TargetRecipe
@@ -48,10 +47,4 @@ data FileRef = FileRef
   , fileRefRole :: FileRole
   , fileRefLanguage :: Maybe Language
   , fileRefOwner :: Maybe TargetName
-  } deriving (Eq, Ord, Show)
-
-data SourceGlob = SourceGlob
-  { sourceGlobBaseDir :: FilePath
-  , sourceGlobPattern :: FilePath
-  , sourceGlobLanguage :: Language
   } deriving (Eq, Ord, Show)

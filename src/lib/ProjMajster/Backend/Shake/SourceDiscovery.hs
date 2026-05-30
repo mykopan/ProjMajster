@@ -61,19 +61,19 @@ sourceManifestRule manifest =
 discoverSources :: SourceDiscovery -> Action [DiscoveredSource]
 discoverSources discovery = do
   files <- sort <$> getDirectoryFiles
-    (sourceGlobBaseDir glob)
-    [sourceGlobPattern glob]
+    (sourcePatternBaseDir pattern)
+    [sourcePatternGlob pattern]
   pure
     [ DiscoveredSource
         { discoveredSourceOwner = sourceDiscoveryOwner discovery
-        , discoveredSourceBaseDir = sourceGlobBaseDir glob
+        , discoveredSourceBaseDir = sourcePatternBaseDir pattern
         , discoveredSourcePath = file
-        , discoveredSourceLanguage = sourceGlobLanguage glob
+        , discoveredSourceLanguage = sourcePatternLanguage pattern
         }
     | file <- files
     ]
   where
-    glob = sourceDiscoveryGlob discovery
+    pattern = sourceDiscoveryPattern discovery
 
 writeSourceManifest :: FilePath -> [DiscoveredSource] -> Action ()
 writeSourceManifest output sources =

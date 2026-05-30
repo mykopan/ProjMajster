@@ -269,7 +269,7 @@ data BuildRecipe = BuildRecipe
 
 data SourceDiscovery = SourceDiscovery
   { sourceDiscoveryOwner :: TargetName
-  , sourceDiscoveryGlob  :: SourceGlob
+  , sourceDiscoveryPattern :: SourcePattern
   }
 
 data TargetRecipe = TargetRecipe

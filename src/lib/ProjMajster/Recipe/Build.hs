@@ -32,11 +32,7 @@ sourceDiscoveries :: TargetName -> ResolvedTarget -> [SourceDiscovery]
 sourceDiscoveries owner target =
   [ SourceDiscovery
       { sourceDiscoveryOwner = owner
-      , sourceDiscoveryGlob = SourceGlob
-          { sourceGlobBaseDir = sourcePatternBaseDir pattern
-          , sourceGlobPattern = sourcePatternGlob pattern
-          , sourceGlobLanguage = sourcePatternLanguage pattern
-          }
+      , sourceDiscoveryPattern = pattern
       }
   | sourceSet <- resolvedTargetSourceSets target
   , pattern <- sourceSetPatterns sourceSet

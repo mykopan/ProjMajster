@@ -208,10 +208,10 @@ testShakeSourceDiscovery = do
         { recipeSources =
             [ SourceDiscovery
                 { sourceDiscoveryOwner = TargetName "foo"
-                , sourceDiscoveryGlob = SourceGlob
-                    { sourceGlobBaseDir = root </> "src" </> "foo"
-                    , sourceGlobPattern = "*.c"
-                    , sourceGlobLanguage = C
+                , sourceDiscoveryPattern = SourcePattern
+                    { sourcePatternBaseDir = root </> "src" </> "foo"
+                    , sourcePatternGlob = "*.c"
+                    , sourcePatternLanguage = C
                     }
                 }
             ]
