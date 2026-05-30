@@ -1,22 +1,9 @@
 module ProjMajster.Plan
-  ( BuildPlan(..)
-  , ResolvedTarget(..)
+  ( module ProjMajster.Plan.Types
+  , module ProjMajster.Plan.Error
+  , module ProjMajster.Plan.Resolve
   ) where
 
-import ProjMajster.Core
-
-data BuildPlan = BuildPlan
-  { planContext :: BuildContext
-  , planTargets :: [ResolvedTarget]
-  , planExternalDeps :: [ResolvedDep]
-  , planInstallSpecs :: [InstallSpec]
-  } deriving (Eq, Show)
-
-data ResolvedTarget = ResolvedTarget
-  { resolvedTargetName :: TargetName
-  , resolvedTargetKind :: TargetKind
-  , resolvedTargetSources :: [FilePath]
-  , resolvedTargetSettings :: BuildSettings
-  , resolvedTargetDeps :: [Dependency]
-  , resolvedTargetInstallSpecs :: [InstallSpec]
-  } deriving (Eq, Show)
+import ProjMajster.Plan.Error
+import ProjMajster.Plan.Resolve
+import ProjMajster.Plan.Types

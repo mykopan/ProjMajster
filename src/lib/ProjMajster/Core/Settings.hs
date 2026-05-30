@@ -19,6 +19,7 @@ module ProjMajster.Core.Settings
   , emptyBuildSettings
   ) where
 
+import Control.Applicative ((<|>))
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
@@ -59,15 +60,56 @@ data CommonSettings = CommonSettings
   , commonPositionIndependentCode :: Maybe Bool
   } deriving (Eq, Show)
 
+instance Semigroup CommonSettings where
+  lhs <> rhs = CommonSettings
+    { commonDefines =
+        commonDefines lhs <> commonDefines rhs
+    , commonIncludeDirs =
+        commonIncludeDirs lhs <> commonIncludeDirs rhs
+    , commonWarningPolicy =
+        commonWarningPolicy rhs <|> commonWarningPolicy lhs
+    , commonDebugInfo =
+        commonDebugInfo rhs <|> commonDebugInfo lhs
+    , commonOptimization =
+        commonOptimization rhs <|> commonOptimization lhs
+    , commonPositionIndependentCode =
+        commonPositionIndependentCode rhs <|> commonPositionIndependentCode lhs
+    }
+
+instance Monoid CommonSettings where
+  mempty = emptyCommonSettings
+
 data CSettings = CSettings
   { cSettingsStandard :: Maybe Text
   , cRawOptions :: [RawOption]
   } deriving (Eq, Show)
 
+instance Semigroup CSettings where
+  lhs <> rhs = CSettings
+    { cSettingsStandard =
+        cSettingsStandard rhs <|> cSettingsStandard lhs
+    , cRawOptions =
+        cRawOptions lhs <> cRawOptions rhs
+    }
+
+instance Monoid CSettings where
+  mempty = emptyCSettings
+
 data CxxSettings = CxxSettings
   { cxxSettingsStandard :: Maybe Text
   , cxxRawOptions :: [RawOption]
   } deriving (Eq, Show)
+
+instance Semigroup CxxSettings where
+  lhs <> rhs = CxxSettings
+    { cxxSettingsStandard =
+        cxxSettingsStandard rhs <|> cxxSettingsStandard lhs
+    , cxxRawOptions =
+        cxxRawOptions lhs <> cxxRawOptions rhs
+    }
+
+instance Monoid CxxSettings where
+  mempty = emptyCxxSettings
 
 data LinkMode
   = LinkProgram
@@ -81,12 +123,42 @@ data LinkSettings = LinkSettings
   , linkRawOptions :: [RawOption]
   } deriving (Eq, Show)
 
+instance Semigroup LinkSettings where
+  lhs <> rhs = LinkSettings
+    { linkSettingsMode =
+        linkSettingsMode rhs <|> linkSettingsMode lhs
+    , linkLibraries =
+        linkLibraries lhs <> linkLibraries rhs
+    , linkLibraryDirs =
+        linkLibraryDirs lhs <> linkLibraryDirs rhs
+    , linkRawOptions =
+        linkRawOptions lhs <> linkRawOptions rhs
+    }
+
+instance Monoid LinkSettings where
+  mempty = emptyLinkSettings
+
 data BuildSettings = BuildSettings
   { commonSettings :: CommonSettings
   , cSettings :: CSettings
   , cxxSettings :: CxxSettings
   , linkSettings :: LinkSettings
   } deriving (Eq, Show)
+
+instance Semigroup BuildSettings where
+  lhs <> rhs = BuildSettings
+    { commonSettings =
+        commonSettings lhs <> commonSettings rhs
+    , cSettings =
+        cSettings lhs <> cSettings rhs
+    , cxxSettings =
+        cxxSettings lhs <> cxxSettings rhs
+    , linkSettings =
+        linkSettings lhs <> linkSettings rhs
+    }
+
+instance Monoid BuildSettings where
+  mempty = emptyBuildSettings
 
 emptyCommonSettings :: CommonSettings
 emptyCommonSettings = CommonSettings

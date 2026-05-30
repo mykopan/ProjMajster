@@ -9,6 +9,13 @@ import ProjMajster
 
 main :: IO ()
 main = do
+  testDslBuildsProject
+  testPlanningResolvesProject
+  testDuplicateTargetsFail
+  testUnknownBuildStyleFails
+
+testDslBuildsProject :: IO ()
+testDslBuildsProject = do
   assertEqual "project name"
     (ProjectName "Demo")
     (projectName demoProject)
@@ -69,6 +76,68 @@ main = do
     [DepName "Bo"]
     (map externalDepName (projectExternalDeps demoProject))
 
+testPlanningResolvesProject :: IO ()
+testPlanningResolvesProject = do
+  plan <- assertRight "resolve release project" $
+    resolveProject releaseContext demoProject
+
+  assertEqual "resolved target count"
+    2
+    (length (planTargets plan))
+
+  (_, app) <- case planTargets plan of
+    [libTarget, appTarget] -> pure (libTarget, appTarget)
+    targets -> fail $
+      "expected exactly two resolved targets, got " <> show (length targets)
+
+  assertEqual "app internal deps inferred from usesLibs"
+    [InternalDependency (InternalDep (TargetName "foo"))]
+    (resolvedTargetDeps app)
+
+  assertEqual "release optimization merged into app"
+    (Just Optimize)
+    (commonOptimization
+      (commonSettings (resolvedTargetSettings app)))
+
+  assertEqual "project warnings merged into app"
+    (Just AllWarnings)
+    (commonWarningPolicy
+      (commonSettings (resolvedTargetSettings app)))
+
+  debugPlan <- assertRight "resolve debug project" $
+    resolveProject debugContext demoProject
+
+  (_, debugApp) <- case planTargets debugPlan of
+    [libTarget, appTarget] -> pure (libTarget, appTarget)
+    targets -> fail $
+      "expected exactly two resolved targets, got " <> show (length targets)
+
+  assertEqual "debug optimization merged into app"
+    (Just NoOptimization)
+    (commonOptimization
+      (commonSettings (resolvedTargetSettings debugApp)))
+
+  assertEqual "debug info merged into app"
+    (Just FullDebugInfo)
+    (commonDebugInfo
+      (commonSettings (resolvedTargetSettings debugApp)))
+
+  assertEqual "build style does not change dependencies"
+    (resolvedTargetDeps app)
+    (resolvedTargetDeps debugApp)
+
+testDuplicateTargetsFail :: IO ()
+testDuplicateTargetsFail =
+  assertEqual "duplicate target error"
+    (Left (DuplicateTargetName (TargetName "dup")))
+    (resolveProject releaseContext duplicateTargetsProject)
+
+testUnknownBuildStyleFails :: IO ()
+testUnknownBuildStyleFails =
+  assertEqual "unknown build style error"
+    (Left (UnknownBuildStyle (BuildStyle "asan")))
+    (resolveProject releaseContext{contextBuildStyle = BuildStyle "asan"} demoProject)
+
 demoProject :: Project
 demoProject = project "Demo" $ do
   version [0, 1, 0]
@@ -99,6 +168,30 @@ demoProject = project "Demo" $ do
     usesLibs ["foo"]
     install BinDir
 
+duplicateTargetsProject :: Project
+duplicateTargetsProject = project "DuplicateTargets" $ do
+  program "dup" $ pure ()
+  sharedLibrary "dup" $ pure ()
+
+releaseContext :: BuildContext
+releaseContext = BuildContext
+  { buildPlatform = linuxX86_64
+  , targetPlatform = linuxX86_64
+  , contextBuildStyle = release
+  }
+
+debugContext :: BuildContext
+debugContext = releaseContext
+  { contextBuildStyle = debug
+  }
+
+linuxX86_64 :: Platform
+linuxX86_64 = Platform
+  { platformOS = Linux
+  , platformArch = X86_64
+  , platformAspects = []
+  }
+
 assertEqual :: (Eq a, Show a) => String -> a -> a -> IO ()
 assertEqual label expected actual =
   unless (expected == actual) $
@@ -107,3 +200,8 @@ assertEqual label expected actual =
       , "expected: " <> show expected
       , "actual:   " <> show actual
       ]
+
+assertRight :: Show e => String -> Either e a -> IO a
+assertRight _ (Right value) = pure value
+assertRight label (Left err) =
+  fail $ label <> ": expected Right, got Left " <> show err

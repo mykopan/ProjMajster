@@ -44,6 +44,9 @@ library:
     - ProjMajster.DSL.Target
     - ProjMajster.Graph
     - ProjMajster.Plan
+    - ProjMajster.Plan.Error
+    - ProjMajster.Plan.Resolve
+    - ProjMajster.Plan.Types
   other-modules:
     - ProjMajster.DSL.Internal
 
