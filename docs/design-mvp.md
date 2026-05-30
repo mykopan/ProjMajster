@@ -42,7 +42,6 @@ These concepts are mostly internal.
 
 - `BuildPlan`: resolved build description before Shake rules are emitted.
 - `BuildGraph`: graph of files and build steps.
-- `BuildStep`: a planned action with inputs, outputs, and an action body.
 - `FileRef`: a file participating in the graph, with a semantic role.
 - `FileRole`: source, generated source, object, shared object, program, etc.
 - `Artifact`: a meaningful output that can be used, installed, exported, or

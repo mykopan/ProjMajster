@@ -228,7 +228,6 @@ Suggested modules:
 ProjMajster.Backend.Shake
 ProjMajster.Backend.Shake.Rules
 ProjMajster.Backend.Shake.Command
-ProjMajster.Backend.Shake.Discovery
 ProjMajster.Backend.Shake.Oracle
 ```
 
@@ -264,8 +263,22 @@ data BuildPlan = BuildPlan
   }
 
 data BuildGraph = BuildGraph
-  { graphFiles :: [FileRef]
-  , graphSteps :: [BuildStep]
+  { graphSources :: [SourceDiscovery]
+  , graphTargets :: [TargetBuild]
+  }
+
+data SourceDiscovery = SourceDiscovery
+  { sourceDiscoveryOwner :: TargetName
+  , sourceDiscoveryGlob  :: SourceGlob
+  }
+
+data TargetBuild = TargetBuild
+  { targetBuildName         :: TargetName
+  , targetBuildKind         :: TargetKind
+  , targetBuildSources      :: [SourceDiscovery]
+  , targetBuildTransforms   :: [TransformRule]
+  , targetBuildDependencies :: [TargetName]
+  , targetBuildOutput       :: FileRef
   }
 
 data TransformRule = TransformRule
@@ -279,24 +292,11 @@ data TransformRule = TransformRule
 data TransformKind
   = MapTransform
   | FoldTransform
-
-data BuildStep = BuildStep
-  { stepName      :: StepName
-  , stepInputs    :: [FileRef]
-  , stepOutputs   :: [FileRef]
-  , stepDiscovered :: [Discovery]
-  , stepTransform :: TransformRule
-  }
-
-data Discovery
-  = DiscoverMakefileDeps FilePath
-  | DiscoverSourceGlob SourceGlob
-  | DiscoverOracle OracleKey
 ```
 
 The exact representation can change, but the distinction should remain:
-planned inputs are known before rule execution, discovered dependencies are
-registered during `Action`.
+`BuildGraph` is a declarative graph of source discovery and target transform
+pipelines. Backend-specific execution instances are derived later.
 
 Examples:
 
