@@ -4,6 +4,7 @@ module ProjMajster.Core.Transform
   , TransformRule(..)
   , InputSelector(..)
   , OutputMapping(..)
+  , ProductMapping(..)
   , TransformAction(..)
   , BuiltinTransform(..)
   ) where
@@ -41,9 +42,14 @@ data InputSelector
 data OutputMapping
   = OutputObject
   | OutputGeneratedSource Language FilePath
-  | OutputTargetBinary
+  | OutputTargetProducts [ProductMapping]
   | OutputCustom FileRole FilePath
   deriving (Eq, Ord, Show)
+
+data ProductMapping = ProductMapping
+  { productRole :: FileRole
+  , productSuffix :: FilePath
+  } deriving (Eq, Ord, Show)
 
 data TransformAction
   = BuiltinAction BuiltinTransform

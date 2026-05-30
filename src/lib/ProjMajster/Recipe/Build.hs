@@ -25,7 +25,7 @@ targetRecipe context target = TargetRecipe
   , targetRecipeSources = sourceDiscoveries (resolvedTargetName target) target
   , targetRecipeTransforms = resolvedTargetTransforms target
   , targetRecipeDependencies = internalDependencies target
-  , targetRecipeOutput = targetOutput context target
+  , targetRecipeProductBase = targetOutput context target
   }
 
 sourceDiscoveries :: TargetName -> ResolvedTarget -> [SourceDiscovery]

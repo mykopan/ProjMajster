@@ -278,13 +278,13 @@ data TargetRecipe = TargetRecipe
   , targetRecipeSources      :: [SourceDiscovery]
   , targetRecipeTransforms   :: [TransformRule]
   , targetRecipeDependencies :: [TargetName]
-  , targetRecipeOutput       :: FileRef
+  , targetRecipeProductBase       :: FileRef
   }
 
 data RuleContext = RuleContext
   { ruleContextTargetName     :: TargetName
   , ruleContextTargetKind     :: TargetKind
-  , ruleContextTargetOutput   :: FileRef
+  , ruleContextTargetProductBase   :: FileRef
   , ruleContextBuildPlatform  :: Platform
   , ruleContextTargetPlatform :: Platform
   , ruleContextBuildStyle     :: BuildStyle
@@ -302,6 +302,17 @@ data TransformRule = TransformRule
 data TransformKind
   = MapTransform
   | FoldTransform
+
+data OutputMapping
+  = OutputObject
+  | OutputGeneratedSource Language FilePath
+  | OutputTargetProducts [ProductMapping]
+  | OutputCustom FileRole FilePath
+
+data ProductMapping = ProductMapping
+  { productRole   :: FileRole
+  , productSuffix :: FilePath
+  }
 ```
 
 The exact representation can change, but the distinction should remain:
@@ -317,6 +328,10 @@ compile-c  : MapTransform  C source -> object file
 compile-cxx: MapTransform  C++ source -> object file
 link       : FoldTransform object files + dependency outputs -> target binary
 ```
+
+Fold transforms may produce multiple target products. For example, a shared
+library rule on Windows can model runtime, development, and manifest outputs as
+one transform instance that produces `.dll`, `.lib`, and `.manifest` products.
 
 Shake backend executes planned transform instances through a runner registry:
 

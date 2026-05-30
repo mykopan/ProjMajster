@@ -29,13 +29,13 @@ data TargetRecipe = TargetRecipe
   , targetRecipeSources :: [SourceDiscovery]
   , targetRecipeTransforms :: [TransformRule]
   , targetRecipeDependencies :: [TargetName]
-  , targetRecipeOutput :: FileRef
+  , targetRecipeProductBase :: FileRef
   } deriving (Eq, Show)
 
 data RuleContext = RuleContext
   { ruleContextTargetName :: TargetName
   , ruleContextTargetKind :: TargetKind
-  , ruleContextTargetOutput :: FileRef
+  , ruleContextTargetProductBase :: FileRef
   , ruleContextBuildPlatform :: Platform
   , ruleContextTargetPlatform :: Platform
   , ruleContextBuildStyle :: BuildStyle

@@ -133,6 +133,6 @@ linkTransform = TransformRule
   { transformName = TransformName "link"
   , transformKind = FoldTransform
   , transformInput = InputLinkInput
-  , transformOutput = OutputTargetBinary
+  , transformOutput = OutputTargetProducts []
   , transformAction = BuiltinAction BuiltinLink
   }

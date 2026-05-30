@@ -174,11 +174,11 @@ testRecipeBuildsTransformPipelines = do
 
   assertEqual "library output role"
     SharedObject
-    (fileRefRole (targetRecipeOutput libBuild))
+    (fileRefRole (targetRecipeProductBase libBuild))
 
   assertEqual "app output role"
     ProgramBinary
-    (fileRefRole (targetRecipeOutput appBuild))
+    (fileRefRole (targetRecipeProductBase appBuild))
 
   assertEqual "json transform stays in graph as rule"
     [OutputGeneratedSource C ".c"]
@@ -311,6 +311,38 @@ testMapTransformPlanning = do
       , let role = fileRefRole output
       ])
 
+  linkRule <- case
+      [ rule
+      | rule <- targetRecipeTransforms reorderedLibBuild
+      , transformAction rule == BuiltinAction BuiltinLink
+      ] of
+    [rule] -> pure rule
+    xs -> fail $ "expected one link rule, got " <> show (length xs)
+  let multiProductLink = linkRule
+        { transformOutput = OutputTargetProducts
+            [ ProductMapping SharedObject ""
+            , ProductMapping ImportLibrary ".lib"
+            , ProductMapping Manifest ".manifest"
+            ]
+        }
+  let multiProductTarget = reorderedLibBuild
+        { targetRecipeTransforms =
+            multiProductLink :
+              filter ((BuiltinAction BuiltinLink /=) . transformAction)
+                (targetRecipeTransforms reorderedLibBuild)
+        }
+  let multiProductInstances =
+        planTargetTransforms releaseContext multiProductTarget discovered [dependencyOutput]
+
+  assertEqual "fold transform can produce multiple target products"
+    (sort [ImportLibrary, Manifest, SharedObject])
+    (sort
+      [ fileRefRole output
+      | instance_ <- multiProductInstances
+      , transformAction (transformInstanceRule instance_) == BuiltinAction BuiltinLink
+      , output <- transformInstanceOutputs instance_
+      ])
+
   assertEqual "transform rule context target"
     [TargetName "foo"]
     (unique
@@ -408,7 +440,7 @@ testShakeTransformInstanceRules = do
   let libBuild = libBuild0
         { targetRecipeTransforms =
             reorderForClosureTest (targetRecipeTransforms libBuild0)
-        , targetRecipeOutput = FileRef
+        , targetRecipeProductBase = FileRef
             { fileRefPath = root </> "_build" </> "product" </> "libfoo.so"
             , fileRefRole = SharedObject
             , fileRefLanguage = Nothing
@@ -455,9 +487,9 @@ testShakeTransformInstanceRules = do
     , shakeVerbosity = Silent
     } $ do
       transformInstanceRulesWith registry instances
-      want [fileRefPath (targetRecipeOutput libBuild)]
+      want [fileRefPath (targetRecipeProductBase libBuild)]
 
-  linkStamp <- readFile (fileRefPath (targetRecipeOutput libBuild))
+  linkStamp <- readFile (fileRefPath (targetRecipeProductBase libBuild))
   let linkInputs = drop 4 (lines linkStamp)
 
   assertEqual "link stamp input count"

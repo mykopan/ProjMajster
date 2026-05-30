@@ -254,14 +254,14 @@ foldTransformInstance context target rule inputs = TransformInstance
   , transformInstanceRuleContext = ruleContext context target
   , transformInstanceRule = rule
   , transformInstanceInputs = inputs
-  , transformInstanceOutputs = [foldTransformOutput target rule]
+  , transformInstanceOutputs = foldTransformOutputs target rule
   }
 
 ruleContext :: BuildContext -> TargetRecipe -> RuleContext
 ruleContext context target = RuleContext
   { ruleContextTargetName = targetRecipeName target
   , ruleContextTargetKind = targetRecipeKind target
-  , ruleContextTargetOutput = targetRecipeOutput target
+  , ruleContextTargetProductBase = targetRecipeProductBase target
   , ruleContextBuildPlatform = buildPlatform context
   , ruleContextTargetPlatform = targetPlatform context
   , ruleContextBuildStyle = contextBuildStyle context
@@ -321,32 +321,37 @@ mapTransformOutput context target rule input =
         , fileRefLanguage = Nothing
         , fileRefOwner = Just (targetRecipeName target)
         }
-    OutputTargetBinary ->
-      targetRecipeOutput target
+    OutputTargetProducts [] ->
+      targetRecipeProductBase target
+    OutputTargetProducts (productMapping : _) ->
+      productOutput target productMapping
 
-foldTransformOutput :: TargetRecipe -> TransformRule -> FileRef
-foldTransformOutput target rule =
+foldTransformOutputs :: TargetRecipe -> TransformRule -> [FileRef]
+foldTransformOutputs target rule =
   case transformOutput rule of
-    OutputTargetBinary ->
-      targetRecipeOutput target
+    OutputTargetProducts [] ->
+      [targetRecipeProductBase target]
+    OutputTargetProducts products ->
+      map (productOutput target) products
     OutputCustom role suffix ->
-      FileRef
-        { fileRefPath =
-            fileRefPath (targetRecipeOutput target) <> suffix
-        , fileRefRole = role
-        , fileRefLanguage = Nothing
-        , fileRefOwner = Just (targetRecipeName target)
-        }
+      [targetRelativeOutput target role suffix Nothing]
     OutputObject ->
-      targetRecipeOutput target
+      [targetRecipeProductBase target]
     OutputGeneratedSource language suffix ->
-      FileRef
-        { fileRefPath =
-            fileRefPath (targetRecipeOutput target) <> suffix
-        , fileRefRole = GeneratedSource
-        , fileRefLanguage = Just language
-        , fileRefOwner = Just (targetRecipeName target)
-        }
+      [targetRelativeOutput target GeneratedSource suffix (Just language)]
+
+productOutput :: TargetRecipe -> ProductMapping -> FileRef
+productOutput target productMapping =
+  targetRelativeOutput target (productRole productMapping) (productSuffix productMapping) Nothing
+
+targetRelativeOutput :: TargetRecipe -> FileRole -> FilePath -> Maybe Language -> FileRef
+targetRelativeOutput target role suffix language = FileRef
+  { fileRefPath =
+      fileRefPath (targetRecipeProductBase target) <> suffix
+  , fileRefRole = role
+  , fileRefLanguage = language
+  , fileRefOwner = Just (targetRecipeName target)
+  }
 
 targetSourceRefs :: TargetRecipe -> [DiscoveredSource] -> [FileRef]
 targetSourceRefs target discovered =
