@@ -49,22 +49,11 @@ These concepts are mostly internal.
 
 ## Target Model
 
-MVP target kinds:
-
-```haskell
-data TargetKind
-  = Program
-  | SharedLibrary SharedLibraryStyle
-```
-
-AORP modules are not a separate target kind. They are shared libraries with
-different naming and install policy.
-
-```haskell
-data SharedLibraryStyle
-  = NormalSharedLibrary
-  | PluginSharedLibrary PluginStyle
-```
+Targets are logical build units. A target is primarily a name plus source sets,
+transform rules, settings, dependencies, and install intent. Program, shared
+library, and AORP module helpers are DSL conveniences that install different
+default transforms, link mode, product mappings, naming, and install policy.
+They are not represented by a core target-kind type.
 
 The DSL may still provide a helper:
 
@@ -195,7 +184,6 @@ Sketch:
 ```haskell
 data RuleContext = RuleContext
   { ruleContextTargetName     :: TargetName
-  , ruleContextTargetKind     :: TargetKind
   , ruleContextTargetProductDir :: FilePath
   , ruleContextBuildPlatform  :: Platform
   , ruleContextTargetPlatform :: Platform
@@ -246,8 +234,8 @@ The target entrypoint should be a logical stamp such as
 `_build/inter/targets/<name>/target.done`. That stamp reads the transform
 manifest, discovers the real product paths produced by the transform closure,
 and `need`s those products dynamically. Product file names are therefore derived
-from transform rules and settings, not from `TargetKind` or the logical target
-name.
+from transform rules and settings, not from a core target kind or the logical
+target name.
 
 Granular rebuilds are preserved by a generic output rule for build outputs. The
 rule looks up the requested output in a cached transform index, `need`s only that
@@ -262,7 +250,8 @@ Refactoring plan:
 3. Move transform planning from `Rules` setup into manifest-producing actions.
 4. Use generic output rules plus cached transform-index lookup.
 5. Change top-level target builds to `need` target stamps, not product paths.
-6. Remove remaining assumptions that `TargetKind` determines product identity.
+6. Remove remaining assumptions that DSL helper names determine product
+   identity.
 
 ## Packaging and Install
 

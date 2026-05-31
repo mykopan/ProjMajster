@@ -2,8 +2,7 @@ module ProjMajster.Recipe.Build
   ( lowerBuildPlan
   ) where
 
-import qualified Data.Text as Text
-import System.FilePath ((</>), (<.>))
+import System.FilePath ((</>))
 
 import ProjMajster.Core
 import ProjMajster.Recipe.Types
@@ -21,7 +20,6 @@ lowerBuildPlan plan = BuildRecipe
 targetRecipe :: BuildContext -> ResolvedTarget -> TargetRecipe
 targetRecipe context target = TargetRecipe
   { targetRecipeName = resolvedTargetName target
-  , targetRecipeKind = resolvedTargetKind target
   , targetRecipeSources = sourceDiscoveries (resolvedTargetName target) target
   , targetRecipeTransforms = resolveTargetProductMappings context target
       (resolvedTargetTransforms target)
@@ -40,24 +38,23 @@ sourceDiscoveries owner target =
   ]
 
 resolveTargetProductMappings :: BuildContext -> ResolvedTarget -> [TransformRule] -> [TransformRule]
-resolveTargetProductMappings context target =
+resolveTargetProductMappings context _target =
   map resolveRule
   where
     resolveRule rule =
       case transformOutput rule of
-        OutputDefaultTargetProducts ->
+        OutputDefaultTargetProducts products ->
           rule
             { transformOutput = OutputTargetProducts
-                [ targetProductMapping context target
-                ]
+                (map (targetProductMapping context) products)
             }
         _ ->
           rule
 
-targetProductMapping :: BuildContext -> ResolvedTarget -> ProductMapping
-targetProductMapping context target = ProductMapping
-  { productRole = outputRole (resolvedTargetKind target)
-  , productPath = buildProductDir (contextBuildDirs context) </> targetOutputName target
+targetProductMapping :: BuildContext -> DefaultProductMapping -> ProductMapping
+targetProductMapping context defaultProduct = ProductMapping
+  { productRole = defaultProductRole defaultProduct
+  , productPath = buildProductDir (contextBuildDirs context) </> defaultProductName defaultProduct
   }
 
 internalDependencies :: ResolvedTarget -> [TargetName]
@@ -65,19 +62,3 @@ internalDependencies target =
   [ depTarget
   | InternalDependency (InternalDep depTarget) <- resolvedTargetDeps target
   ]
-
-targetOutputName :: ResolvedTarget -> FilePath
-targetOutputName target =
-  case resolvedTargetKind target of
-    Program ->
-      targetNameString (resolvedTargetName target)
-    SharedLibrary _ ->
-      "lib" <> targetNameString (resolvedTargetName target) <.> "so"
-
-outputRole :: TargetKind -> FileRole
-outputRole Program = ProgramBinary
-outputRole (SharedLibrary _) = SharedObject
-
-targetNameString :: TargetName -> String
-targetNameString (TargetName name) =
-  Text.unpack name

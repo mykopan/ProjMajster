@@ -3,6 +3,7 @@ module ProjMajster.Core.Transform
   , TransformKind(..)
   , TransformRule(..)
   , InputSelector(..)
+  , DefaultProductMapping(..)
   , OutputMapping(..)
   , ProductMapping(..)
   , TransformAction(..)
@@ -42,10 +43,15 @@ data InputSelector
 data OutputMapping
   = OutputObject
   | OutputGeneratedSource Language FilePath
-  | OutputDefaultTargetProducts
+  | OutputDefaultTargetProducts [DefaultProductMapping]
   | OutputTargetProducts [ProductMapping]
   | OutputCustom FileRole FilePath
   deriving (Eq, Ord, Show, Read)
+
+data DefaultProductMapping = DefaultProductMapping
+  { defaultProductRole :: FileRole
+  , defaultProductName :: FilePath
+  } deriving (Eq, Ord, Show, Read)
 
 data ProductMapping = ProductMapping
   { productRole :: FileRole

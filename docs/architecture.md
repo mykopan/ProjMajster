@@ -274,7 +274,6 @@ data SourceDiscovery = SourceDiscovery
 
 data TargetRecipe = TargetRecipe
   { targetRecipeName         :: TargetName
-  , targetRecipeKind         :: TargetKind
   , targetRecipeSources      :: [SourceDiscovery]
   , targetRecipeTransforms   :: [TransformRule]
   , targetRecipeDependencies :: [TargetName]
@@ -283,7 +282,6 @@ data TargetRecipe = TargetRecipe
 
 data RuleContext = RuleContext
   { ruleContextTargetName     :: TargetName
-  , ruleContextTargetKind     :: TargetKind
   , ruleContextTargetProductDir :: FilePath
   , ruleContextBuildPlatform  :: Platform
   , ruleContextTargetPlatform :: Platform
@@ -306,9 +304,14 @@ data TransformKind
 data OutputMapping
   = OutputObject
   | OutputGeneratedSource Language FilePath
-  | OutputDefaultTargetProducts
+  | OutputDefaultTargetProducts [DefaultProductMapping]
   | OutputTargetProducts [ProductMapping]
   | OutputCustom FileRole FilePath
+
+data DefaultProductMapping = DefaultProductMapping
+  { defaultProductRole :: FileRole
+  , defaultProductName :: FilePath
+  }
 
 data ProductMapping = ProductMapping
   { productRole   :: FileRole
@@ -397,8 +400,7 @@ That keeps per-output routing cheap within a Shake run while still allowing each
 output to rebuild independently.
 
 This model keeps target names logical. Product paths are derived from transform
-closure, not from `TargetKind`, and target kind can remain only as optional
-policy/defaults.
+closure and resolved product mappings, not from a core target kind.
 
 ## Error Strategy
 

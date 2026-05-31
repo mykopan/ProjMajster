@@ -391,7 +391,6 @@ foldTransformInstance context target rule inputs = TransformInstance
 ruleContext :: BuildContext -> TargetRecipe -> RuleContext
 ruleContext context target = RuleContext
   { ruleContextTargetName = targetRecipeName target
-  , ruleContextTargetKind = targetRecipeKind target
   , ruleContextTargetProductDir = targetRecipeProductDir target
   , ruleContextBuildPlatform = buildPlatform context
   , ruleContextTargetPlatform = targetPlatform context
@@ -452,7 +451,7 @@ mapTransformOutput context target rule input =
         , fileRefLanguage = Nothing
         , fileRefOwner = Just (targetRecipeName target)
         }
-    OutputDefaultTargetProducts ->
+    OutputDefaultTargetProducts _ ->
       error "OutputDefaultTargetProducts must be resolved before transform planning"
     OutputTargetProducts [] ->
       error "OutputTargetProducts requires at least one product"
@@ -466,7 +465,7 @@ foldTransformOutputs target rule =
       []
     OutputTargetProducts products ->
       map (productOutput target) products
-    OutputDefaultTargetProducts ->
+    OutputDefaultTargetProducts _ ->
       []
     OutputCustom role suffix ->
       [targetRelativeOutput target role suffix Nothing]

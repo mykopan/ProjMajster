@@ -10,7 +10,7 @@ import ProjMajster.Core.BuildStyle (BuildStyle)
 import ProjMajster.Core.FileRole (FileRole)
 import ProjMajster.Core.Platform (BuildDirs, Platform)
 import ProjMajster.Core.SourceSet (Language, SourcePattern)
-import ProjMajster.Core.Target (TargetKind, TargetName)
+import ProjMajster.Core.Target (TargetName)
 import ProjMajster.Core.Transform (TransformRule)
 
 data BuildRecipe = BuildRecipe
@@ -25,7 +25,6 @@ data SourceDiscovery = SourceDiscovery
 
 data TargetRecipe = TargetRecipe
   { targetRecipeName :: TargetName
-  , targetRecipeKind :: TargetKind
   , targetRecipeSources :: [SourceDiscovery]
   , targetRecipeTransforms :: [TransformRule]
   , targetRecipeDependencies :: [TargetName]
@@ -34,7 +33,6 @@ data TargetRecipe = TargetRecipe
 
 data RuleContext = RuleContext
   { ruleContextTargetName :: TargetName
-  , ruleContextTargetKind :: TargetKind
   , ruleContextTargetProductDir :: FilePath
   , ruleContextBuildPlatform :: Platform
   , ruleContextTargetPlatform :: Platform

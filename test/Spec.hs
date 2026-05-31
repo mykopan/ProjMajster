@@ -52,10 +52,6 @@ testDslBuildsProject = do
     (TargetName "foo")
     (targetName lib)
 
-  assertEqual "shared library kind"
-    (SharedLibrary NormalSharedLibrary)
-    (targetKind lib)
-
   assertEqual "shared library link mode"
     (Just LinkShared)
     (linkSettingsMode (linkSettings (targetSettings lib)))

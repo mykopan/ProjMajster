@@ -56,26 +56,24 @@ newtype TargetM a = TargetM
 
 data TargetDraft = TargetDraft
   { targetDraftName :: TargetName
-  , targetDraftKind :: TargetKind
   , targetDraftSourceSets :: [SourceSet]
   , targetDraftTransforms :: [TransformRule]
   , targetDraftSettings :: BuildSettings
   , targetDraftInstallSpecs :: [InstallSpec]
   } deriving (Eq, Show)
 
-emptyTargetDraft :: TargetName -> TargetKind -> TargetDraft
-emptyTargetDraft name kind = TargetDraft
+emptyTargetDraft :: TargetName -> TargetDraft
+emptyTargetDraft name = TargetDraft
   { targetDraftName = name
-  , targetDraftKind = kind
   , targetDraftSourceSets = []
   , targetDraftTransforms = []
   , targetDraftSettings = emptyBuildSettings
   , targetDraftInstallSpecs = []
   }
 
-runTargetM :: TargetName -> TargetKind -> TargetM () -> TargetDraft
-runTargetM name kind (TargetM action) =
-  execState action (emptyTargetDraft name kind)
+runTargetM :: TargetName -> TargetM () -> TargetDraft
+runTargetM name (TargetM action) =
+  execState action (emptyTargetDraft name)
 
 newtype SourceSetM a = SourceSetM
   { unSourceSetM :: State SourceSetDraft a

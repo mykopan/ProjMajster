@@ -64,7 +64,6 @@ lookupBuildStyleSettings style project =
 resolveTarget :: [TargetName] -> BuildSettings -> Target -> ResolvedTarget
 resolveTarget internalTargetNames projectSettings target = ResolvedTarget
   { resolvedTargetName = targetName target
-  , resolvedTargetKind = targetKind target
   , resolvedTargetSourceSets = targetSourceSets target
   , resolvedTargetTransforms = targetTransforms target
   , resolvedTargetSettings =

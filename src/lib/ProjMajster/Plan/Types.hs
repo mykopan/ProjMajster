@@ -14,7 +14,6 @@ data BuildPlan = BuildPlan
 
 data ResolvedTarget = ResolvedTarget
   { resolvedTargetName :: TargetName
-  , resolvedTargetKind :: TargetKind
   , resolvedTargetSourceSets :: [SourceSet]
   , resolvedTargetTransforms :: [TransformRule]
   , resolvedTargetSettings :: BuildSettings
