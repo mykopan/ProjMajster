@@ -2,24 +2,38 @@ module ProjMajster.Backend.Shake.Transform
   ( CommandRunner
   , CommandSpec(..)
   , ShakeTransformRunner
+  , TransformManifest(..)
   , TransformInstance(..)
   , TransformRunnerRegistry(..)
   , builtinCommandTransformRunners
   , defaultTransformRunnerRegistry
+  , parseTransformManifestContent
   , planMapTransforms
   , planTargetTransforms
+  , readTransformManifest
+  , targetBuildRules
+  , targetBuildStampPath
+  , transformManifest
+  , transformManifestIndex
+  , transformManifestPath
+  , transformManifestProducts
+  , transformManifestRules
+  , transformOutputRulesWith
   , transformInstanceRules
   , transformInstanceRulesWith
   , transformRunnerRegistry
+  , writeTransformManifest
   ) where
 
 import Data.List (sort)
 import qualified Data.Map.Strict as Map
+import Data.Maybe (mapMaybe)
 import qualified Data.Text as Text
 import qualified Data.Set as Set
 import Development.Shake
 import System.FilePath ((</>), (<.>), dropExtension, splitDirectories, takeDirectory)
 import qualified System.Directory as Directory
+import Text.Read (readMaybe)
 
 import ProjMajster.Backend.Shake.SourceDiscovery
 import ProjMajster.Core
@@ -44,7 +58,11 @@ data TransformInstance = TransformInstance
   , transformInstanceRule :: TransformRule
   , transformInstanceInputs :: [FileRef]
   , transformInstanceOutputs :: [FileRef]
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Read)
+
+newtype TransformManifest = TransformManifest
+  { transformManifestInstances :: [TransformInstance]
+  } deriving (Eq, Show, Read)
 
 data TransformRunnerRegistry = TransformRunnerRegistry
   { transformRunners :: Map.Map TransformAction ShakeTransformRunner
@@ -79,6 +97,139 @@ compileCTransformRunner commandRunner context _rule inputs outputs =
         }
     _ ->
       fail "compile-c transform expects exactly one input and one output"
+
+transformManifest :: [TransformInstance] -> TransformManifest
+transformManifest =
+  TransformManifest
+
+transformManifestPath :: BuildContext -> TargetRecipe -> FilePath
+transformManifestPath context target =
+  buildInterDir (contextBuildDirs context)
+    </> "targets"
+    </> targetNameString (targetRecipeName target)
+    </> "transforms.manifest"
+
+writeTransformManifest :: FilePath -> TransformManifest -> Action ()
+writeTransformManifest path manifest = do
+  liftIO $ Directory.createDirectoryIfMissing True (takeDirectory path)
+  writeFileChanged path (encodeTransformManifest manifest)
+
+readTransformManifest :: FilePath -> Action TransformManifest
+readTransformManifest path =
+  parseTransformManifestContent <$> readFile' path
+
+parseTransformManifestContent :: String -> TransformManifest
+parseTransformManifestContent =
+  TransformManifest . mapMaybe readMaybe . filter (not . null) . lines
+
+transformManifestIndex :: TransformManifest -> Map.Map FilePath TransformInstance
+transformManifestIndex manifest =
+  Map.fromList
+    [ (fileRefPath output, instance_)
+    | instance_ <- transformManifestInstances manifest
+    , output <- transformInstanceOutputs instance_
+    ]
+
+transformManifestProducts :: TransformManifest -> [FileRef]
+transformManifestProducts manifest =
+  [ output
+  | instance_ <- transformManifestInstances manifest
+  , transformKind (transformInstanceRule instance_) == FoldTransform
+  , output <- transformInstanceOutputs instance_
+  ]
+
+transformManifestRules :: BuildContext -> BuildRecipe -> Rules ()
+transformManifestRules context recipe =
+  mapM_ targetTransformManifestRule (recipeTargets recipe)
+  where
+    manifests = sourceManifests context recipe
+
+    targetTransformManifestRule target =
+      transformManifestPath context target %> \output -> do
+        let targetSourceManifests =
+              filter ((targetRecipeName target ==) . sourceDiscoveryOwner . sourceManifestDiscovery) manifests
+        need (map sourceManifestPath targetSourceManifests)
+        discovered <- concat <$> mapM readSourceManifest targetSourceManifests
+        let instances = planTargetTransforms context target discovered []
+        writeTransformManifest output (transformManifest instances)
+
+transformOutputRulesWith :: BuildContext -> BuildRecipe -> TransformRunnerRegistry -> Rules ()
+transformOutputRulesWith context recipe registry = do
+  loadIndex <- newCache $ \manifestPath -> do
+    transformManifestIndex <$> readTransformManifest manifestPath
+  let manifestPaths =
+        map (transformManifestPath context) (recipeTargets recipe)
+  mapM_ (targetIntermediateRules loadIndex manifestPaths) (recipeTargets recipe)
+  recursivePattern (buildProductDir (contextBuildDirs context)) %>
+    buildPlannedOutput loadIndex manifestPaths
+  where
+    buildPlannedOutput loadIndex manifestPaths outputPath = do
+      need manifestPaths
+      indexes <- mapM loadIndex manifestPaths
+      case lookupTransformInstance outputPath indexes of
+        Nothing ->
+          fail $ "no transform instance produces output: " <> outputPath
+        Just instance_ -> do
+          need (map fileRefPath (transformInstanceInputs instance_))
+          runTransformInstance registry instance_
+
+    targetIntermediateRules loadIndex manifestPaths target = do
+      let interDir = targetInterDir context (targetRecipeName target)
+      recursivePattern (interDir </> "obj") %>
+        buildPlannedOutput loadIndex manifestPaths
+      recursivePattern (interDir </> "generated") %>
+        buildPlannedOutput loadIndex manifestPaths
+      recursivePattern (interDir </> "custom") %>
+        buildPlannedOutput loadIndex manifestPaths
+
+    recursivePattern dir =
+      dir <> "//*"
+
+lookupTransformInstance
+  :: FilePath
+  -> [Map.Map FilePath TransformInstance]
+  -> Maybe TransformInstance
+lookupTransformInstance _ [] =
+  Nothing
+lookupTransformInstance outputPath (index : indexes) =
+  case Map.lookup outputPath index of
+    Just instance_ ->
+      Just instance_
+    Nothing ->
+      lookupTransformInstance outputPath indexes
+
+targetBuildRules :: BuildContext -> BuildRecipe -> Rules ()
+targetBuildRules context recipe =
+  mapM_ targetBuildRule (recipeTargets recipe)
+  where
+    targetBuildRule target =
+      targetBuildStampPath context target %> \output -> do
+        let manifestPath = transformManifestPath context target
+        need [manifestPath]
+        manifest <- readTransformManifest manifestPath
+        let products = transformManifestProducts manifest
+        need (map fileRefPath products)
+        writeFileChanged output (targetBuildStamp target products)
+
+targetBuildStampPath :: BuildContext -> TargetRecipe -> FilePath
+targetBuildStampPath context target =
+  buildInterDir (contextBuildDirs context)
+    </> "targets"
+    </> targetNameString (targetRecipeName target)
+    </> "target.done"
+
+targetBuildStamp :: TargetRecipe -> [FileRef] -> String
+targetBuildStamp target products = unlines $
+  [ "target: " <> targetNameString (targetRecipeName target)
+  , "products:"
+  ] <>
+  [ "- " <> fileRefPath productFile
+  | productFile <- products
+  ]
+
+encodeTransformManifest :: TransformManifest -> String
+encodeTransformManifest manifest =
+  unlines (map show (transformManifestInstances manifest))
 
 transformInstanceRules :: [TransformInstance] -> Rules ()
 transformInstanceRules =

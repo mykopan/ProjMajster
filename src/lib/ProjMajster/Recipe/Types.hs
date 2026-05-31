@@ -16,12 +16,12 @@ import ProjMajster.Core.Transform (TransformRule)
 data BuildRecipe = BuildRecipe
   { recipeSources :: [SourceDiscovery]
   , recipeTargets :: [TargetRecipe]
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Read)
 
 data SourceDiscovery = SourceDiscovery
   { sourceDiscoveryOwner :: TargetName
   , sourceDiscoveryPattern :: SourcePattern
-  } deriving (Eq, Ord, Show)
+  } deriving (Eq, Ord, Show, Read)
 
 data TargetRecipe = TargetRecipe
   { targetRecipeName :: TargetName
@@ -30,7 +30,7 @@ data TargetRecipe = TargetRecipe
   , targetRecipeTransforms :: [TransformRule]
   , targetRecipeDependencies :: [TargetName]
   , targetRecipeProductBase :: FileRef
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Read)
 
 data RuleContext = RuleContext
   { ruleContextTargetName :: TargetName
@@ -40,11 +40,11 @@ data RuleContext = RuleContext
   , ruleContextTargetPlatform :: Platform
   , ruleContextBuildStyle :: BuildStyle
   , ruleContextBuildDirs :: BuildDirs
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Read)
 
 data FileRef = FileRef
   { fileRefPath :: FilePath
   , fileRefRole :: FileRole
   , fileRefLanguage :: Maybe Language
   , fileRefOwner :: Maybe TargetName
-  } deriving (Eq, Ord, Show)
+  } deriving (Eq, Ord, Show, Read)

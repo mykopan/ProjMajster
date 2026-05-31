@@ -19,4 +19,4 @@ data FileRole
   | InstalledFile
   | PackageFile
   | CustomFileRole Text
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Read)

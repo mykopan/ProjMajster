@@ -10,7 +10,7 @@ import Data.Text (Text)
 
 newtype BuildStyle = BuildStyle
   { buildStyleName :: Text
-  } deriving (Eq, Ord, Show)
+  } deriving (Eq, Ord, Show, Read)
 
 debug :: BuildStyle
 debug = BuildStyle "debug"

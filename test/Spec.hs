@@ -22,6 +22,7 @@ main = do
   testShakeSourceDiscovery
   testMapTransformPlanning
   testShakeTransformInstanceRules
+  testShakeTransformOutputRules
   testDuplicateTargetsFail
   testUnknownBuildStyleFails
 
@@ -378,6 +379,23 @@ testMapTransformPlanning = do
     [ObjectFile, ObjectFile, ObjectFile, SharedObject]
     (sort (map fileRefRole (transformInstanceInputs linkInstance)))
 
+  let manifest = transformManifest instances
+  assertEqual "transform manifest roundtrip"
+    manifest
+    (parseTransformManifestContent
+      (unlines (map show (transformManifestInstances manifest))))
+
+  assertEqual "transform manifest products"
+    [SharedObject]
+    (map fileRefRole (transformManifestProducts manifest))
+
+  assertEqual "transform manifest indexes link output"
+    (Just (BuiltinAction BuiltinLink))
+    (transformAction . transformInstanceRule <$>
+      Map.lookup
+        (fileRefPath (head (transformInstanceOutputs linkInstance)))
+        (transformManifestIndex manifest))
+
 reorderForClosureTest :: [TransformRule] -> [TransformRule]
 reorderForClosureTest rules =
   filter ((BuiltinAction BuiltinLink ==) . transformAction) rules <>
@@ -437,9 +455,36 @@ testShakeTransformInstanceRules = do
             , buildDistDir = root </> "_build" </> "dist"
             }
         }
+  let sourceDiscoveries =
+        [ SourceDiscovery
+            { sourceDiscoveryOwner = TargetName "foo"
+            , sourceDiscoveryPattern = SourcePattern
+                { sourcePatternBaseDir = root </> "src" </> "foo"
+                , sourcePatternGlob = "**/*.json"
+                , sourcePatternLanguage = CustomLanguage "json"
+                }
+            }
+        , SourceDiscovery
+            { sourceDiscoveryOwner = TargetName "foo"
+            , sourceDiscoveryPattern = SourcePattern
+                { sourcePatternBaseDir = root </> "src" </> "foo"
+                , sourcePatternGlob = "**/*.c"
+                , sourcePatternLanguage = C
+                }
+            }
+        , SourceDiscovery
+            { sourceDiscoveryOwner = TargetName "foo"
+            , sourceDiscoveryPattern = SourcePattern
+                { sourcePatternBaseDir = root </> "src" </> "foo"
+                , sourcePatternGlob = "**/*.cpp"
+                , sourcePatternLanguage = Cxx
+                }
+            }
+        ]
   let libBuild = libBuild0
         { targetRecipeTransforms =
             reorderForClosureTest (targetRecipeTransforms libBuild0)
+        , targetRecipeSources = sourceDiscoveries
         , targetRecipeProductBase = FileRef
             { fileRefPath = root </> "_build" </> "product" </> "libfoo.so"
             , fileRefRole = SharedObject
@@ -481,13 +526,22 @@ testShakeTransformInstanceRules = do
           ( builtinCommandTransformRunners recordingCommandRunner <>
             [(CustomAction "json-to-c", contextStampRunner)]
           )
+  let recipe = BuildRecipe
+        { recipeSources = targetRecipeSources libBuild
+        , recipeTargets = [libBuild]
+        }
 
   shake shakeOptions
     { shakeFiles = root </> "_shake"
     , shakeVerbosity = Silent
     } $ do
+      sourceDiscoveryRules context recipe
+      transformManifestRules context recipe
       transformInstanceRulesWith registry instances
-      want [fileRefPath (targetRecipeProductBase libBuild)]
+      want
+        [ transformManifestPath context libBuild
+        , fileRefPath (targetRecipeProductBase libBuild)
+        ]
 
   linkStamp <- readFile (fileRefPath (targetRecipeProductBase libBuild))
   let linkInputs = drop 4 (lines linkStamp)
@@ -498,6 +552,12 @@ testShakeTransformInstanceRules = do
 
   assertBool "link stamp includes dependency output" $
     ("- " <> fileRefPath dependencyOutput) `elem` linkInputs
+
+  plannedManifest <- parseTransformManifestContent <$>
+    readFile (transformManifestPath context libBuild)
+  assertEqual "transform manifest rule plans products"
+    [SharedObject]
+    (map fileRefRole (transformManifestProducts plannedManifest))
 
   generatedSource <- case
       [ output
@@ -533,6 +593,87 @@ testShakeTransformInstanceRules = do
   assertBool "compile-c command includes input and output arguments" $
     ("arguments: -c " <> cSource <> " -o " <> fileRefPath cObject)
       `elem` lines cObjectContent
+
+testShakeTransformOutputRules :: IO ()
+testShakeTransformOutputRules = do
+  let root = "test" </> "tmp" </> "transform-output-rules"
+  Directory.removePathForcibly root `catchIO` \_ -> pure ()
+  Directory.createDirectoryIfMissing True (root </> "src" </> "foo")
+  writeFile (root </> "src" </> "foo" </> "config.json") "{}"
+  writeFile (root </> "src" </> "foo" </> "main.c") "int main_c;"
+
+  plan <- assertRight "resolve release project" $
+    resolveProject releaseContext demoProject
+  graph <- pure (lowerBuildPlan plan)
+
+  libBuild0 <- case recipeTargets graph of
+    libTarget : _ -> pure libTarget
+    [] -> fail "expected at least one target recipe"
+
+  let context = releaseContext
+        { contextBuildDirs = BuildDirs
+            { buildRootDir = root </> "_build"
+            , buildInterDir = root </> "_build" </> "inter"
+            , buildProductDir = root </> "_build" </> "product"
+            , buildDistDir = root </> "_build" </> "dist"
+            }
+        }
+  let sourceDiscoveries =
+        [ SourceDiscovery
+            { sourceDiscoveryOwner = TargetName "foo"
+            , sourceDiscoveryPattern = SourcePattern
+                { sourcePatternBaseDir = root </> "src" </> "foo"
+                , sourcePatternGlob = "**/*.json"
+                , sourcePatternLanguage = CustomLanguage "json"
+                }
+            }
+        , SourceDiscovery
+            { sourceDiscoveryOwner = TargetName "foo"
+            , sourceDiscoveryPattern = SourcePattern
+                { sourcePatternBaseDir = root </> "src" </> "foo"
+                , sourcePatternGlob = "**/*.c"
+                , sourcePatternLanguage = C
+                }
+            }
+        ]
+  let libBuild = libBuild0
+        { targetRecipeTransforms =
+            reorderForClosureTest (targetRecipeTransforms libBuild0)
+        , targetRecipeSources = sourceDiscoveries
+        , targetRecipeProductBase = FileRef
+            { fileRefPath = root </> "_build" </> "product" </> "libfoo.so"
+            , fileRefRole = SharedObject
+            , fileRefLanguage = Nothing
+            , fileRefOwner = Just (TargetName "foo")
+            }
+        }
+  let recipe = BuildRecipe
+        { recipeSources = targetRecipeSources libBuild
+        , recipeTargets = [libBuild]
+        }
+  let registry =
+        transformRunnerRegistry
+          ( builtinCommandTransformRunners recordingCommandRunner <>
+            [(CustomAction "json-to-c", contextStampRunner)]
+          )
+
+  shake shakeOptions
+    { shakeFiles = root </> "_shake"
+    , shakeVerbosity = Silent
+    } $ do
+      sourceDiscoveryRules context recipe
+      transformManifestRules context recipe
+      transformOutputRulesWith context recipe registry
+      targetBuildRules context recipe
+      want [targetBuildStampPath context libBuild]
+
+  linkStamp <- readFile (fileRefPath (targetRecipeProductBase libBuild))
+  assertEqual "generic output rules build link inputs"
+    2
+    (length (drop 4 (lines linkStamp)))
+  targetStamp <- readFile (targetBuildStampPath context libBuild)
+  assertBool "target stamp records dynamic product"
+    (("- " <> fileRefPath (targetRecipeProductBase libBuild)) `elem` lines targetStamp)
 
 contextStampRunner :: ShakeTransformRunner
 contextStampRunner context rule inputs outputs =

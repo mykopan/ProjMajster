@@ -29,27 +29,27 @@ data Optimization
   | Optimize
   | OptimizeSize
   | OptimizeAggressively
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Read)
 
 data DebugInfo
   = NoDebugInfo
   | MinimalDebugInfo
   | FullDebugInfo
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Read)
 
 data WarningPolicy
   = DefaultWarnings
   | AllWarnings
   | WarningsAsErrors
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Read)
 
 newtype RawOption = RawOption
   { rawOptionText :: Text
-  } deriving (Eq, Ord, Show)
+  } deriving (Eq, Ord, Show, Read)
 
 newtype LibraryName = LibraryName
   { libraryNameText :: Text
-  } deriving (Eq, Ord, Show)
+  } deriving (Eq, Ord, Show, Read)
 
 data CommonSettings = CommonSettings
   { commonDefines :: Map Text Text
@@ -58,7 +58,7 @@ data CommonSettings = CommonSettings
   , commonDebugInfo :: Maybe DebugInfo
   , commonOptimization :: Maybe Optimization
   , commonPositionIndependentCode :: Maybe Bool
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Read)
 
 instance Semigroup CommonSettings where
   lhs <> rhs = CommonSettings
@@ -82,7 +82,7 @@ instance Monoid CommonSettings where
 data CSettings = CSettings
   { cSettingsStandard :: Maybe Text
   , cRawOptions :: [RawOption]
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Read)
 
 instance Semigroup CSettings where
   lhs <> rhs = CSettings
@@ -98,7 +98,7 @@ instance Monoid CSettings where
 data CxxSettings = CxxSettings
   { cxxSettingsStandard :: Maybe Text
   , cxxRawOptions :: [RawOption]
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Read)
 
 instance Semigroup CxxSettings where
   lhs <> rhs = CxxSettings
@@ -114,14 +114,14 @@ instance Monoid CxxSettings where
 data LinkMode
   = LinkProgram
   | LinkShared
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Read)
 
 data LinkSettings = LinkSettings
   { linkSettingsMode :: Maybe LinkMode
   , linkLibraries :: [LibraryName]
   , linkLibraryDirs :: [FilePath]
   , linkRawOptions :: [RawOption]
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Read)
 
 instance Semigroup LinkSettings where
   lhs <> rhs = LinkSettings
@@ -143,7 +143,7 @@ data BuildSettings = BuildSettings
   , cSettings :: CSettings
   , cxxSettings :: CxxSettings
   , linkSettings :: LinkSettings
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Read)
 
 instance Semigroup BuildSettings where
   lhs <> rhs = BuildSettings

@@ -4,6 +4,7 @@ module ProjMajster.Backend.Shake
   , DiscoveredSource(..)
   , ShakeTransformRunner
   , SourceManifest(..)
+  , TransformManifest(..)
   , TransformInstance(..)
   , TransformRunnerRegistry(..)
   , builtinCommandTransformRunners
@@ -12,12 +13,23 @@ module ProjMajster.Backend.Shake
   , sourceDiscoveryRules
   , discoverSources
   , parseSourceManifestContent
+  , parseTransformManifestContent
   , planMapTransforms
   , planTargetTransforms
   , readSourceManifest
+  , readTransformManifest
+  , targetBuildRules
+  , targetBuildStampPath
+  , transformManifest
+  , transformManifestIndex
+  , transformManifestPath
+  , transformManifestProducts
+  , transformManifestRules
+  , transformOutputRulesWith
   , transformInstanceRules
   , transformInstanceRulesWith
   , transformRunnerRegistry
+  , writeTransformManifest
   ) where
 
 import ProjMajster.Backend.Shake.SourceDiscovery

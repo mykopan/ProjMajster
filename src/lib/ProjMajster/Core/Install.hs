@@ -12,9 +12,9 @@ data InstallDir
   | IncludeDir
   | ShareDir FilePath
   | CustomInstallDir FilePath
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Read)
 
 data InstallSpec = InstallSpec
   { installSpecDir :: InstallDir
   , installSpecRole :: Maybe Text
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Read)

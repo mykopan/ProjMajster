@@ -29,18 +29,18 @@ data Platform = Platform
   { platformOS :: OS
   , platformArch :: Arch
   , platformAspects :: [Text]
-  } deriving (Eq, Ord, Show)
+  } deriving (Eq, Ord, Show, Read)
 
 data BuildDirs = BuildDirs
   { buildRootDir :: FilePath
   , buildInterDir :: FilePath
   , buildProductDir :: FilePath
   , buildDistDir :: FilePath
-  } deriving (Eq, Ord, Show)
+  } deriving (Eq, Ord, Show, Read)
 
 data BuildContext = BuildContext
   { buildPlatform :: Platform
   , targetPlatform :: Platform
   , contextBuildStyle :: BuildStyle
   , contextBuildDirs :: BuildDirs
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Read)
