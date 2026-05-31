@@ -361,6 +361,44 @@ real compiler, linker, and code-generation runners can replace actions
 incrementally. Built-in transforms may lower to `CommandSpec` first, which keeps
 tool command construction testable separately from process execution.
 
+## Shake Transform Execution Model
+
+Source discovery happens in Shake `Action`, so the backend cannot generate one
+static `Rules` entry for every discovered transform instance. The backend should
+register stable, generic rules and compute the concrete transform closure during
+actions.
+
+Stable rules:
+
+```text
+<target>/sources.manifest     -- discovers source files for the target
+<target>/transforms.manifest  -- computes the transform closure
+<target>/target.done          -- logical target entrypoint
+_build/**                     -- generic output rule for planned transform outputs
+```
+
+`target.done` is the user-facing build entrypoint for a logical target. It does
+not assume product paths are known before source discovery. Its action reads the
+transform manifest, finds the final target products, and `need`s those product
+paths.
+
+The generic output rule preserves Shake granularity. When a generated source,
+object file, import library, manifest, or final product is needed, it:
+
+1. loads the target transform index;
+2. looks up the requested output path;
+3. `need`s the instance inputs;
+4. runs the selected transform runner.
+
+The transform manifest should be parsed through a Shake cache, for example a
+`newCache`-backed lookup from manifest path to `Map FilePath TransformInstance`.
+That keeps per-output routing cheap within a Shake run while still allowing each
+output to rebuild independently.
+
+This model keeps target names logical. Product paths are derived from transform
+closure, not from `TargetKind`, and target kind can remain only as optional
+policy/defaults.
+
 ## Error Strategy
 
 Prefer early validation errors during planning:
@@ -391,15 +429,19 @@ transform code.
 1. Core types compile.
 2. DSL can declare a project with one shared library and one program.
 3. Planning validates declarations and resolves settings.
-4. Recipe lowering applies built-in and custom transform rules with
-   planned/discovered dependency metadata.
-5. Shake backend can run those steps.
-6. C/C++ compile transforms record generated header dependencies.
-7. Shake-tracked source globs rebuild when source files are added or removed.
-8. Internal dependency inference works through `usesLibs`.
-9. Remote binary dependency resolver provides include/library dirs.
-10. Minimal install staging works.
-11. A small Vodi subset builds.
+4. Recipe lowering keeps target descriptions logical and does not require
+   product paths to be known up front.
+5. Shake backend writes source manifests from tracked source discovery.
+6. Shake backend writes transform manifests from action-time transform closure.
+7. Shake backend builds target stamps by dynamically needing manifest products.
+8. Generic output rules execute transform instances through a cached transform
+   index, preserving per-output rebuild granularity.
+9. C/C++ compile transforms record generated header dependencies.
+10. Shake-tracked source globs rebuild when source files are added or removed.
+11. Internal dependency inference works through `usesLibs`.
+12. Remote binary dependency resolver provides include/library dirs.
+13. Minimal install staging works.
+14. A small Vodi subset builds.
 
 ## Design Rules
 

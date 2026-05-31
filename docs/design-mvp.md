@@ -238,6 +238,33 @@ At minimum, the model distinguishes:
 - `FoldTransform`: many input items to output item(s), for example objects plus
   dependency outputs to a shared library or program.
 
+Shake execution should be manifest-driven, not static-instance-driven.
+Discovered sources are only available in `Action`, so the backend should not try
+to emit one Shake rule per transform instance during the `Rules` phase.
+
+The target entrypoint should be a logical stamp such as
+`_build/inter/targets/<name>/target.done`. That stamp reads the transform
+manifest, discovers the real product paths produced by the transform closure,
+and `need`s those products dynamically. Product file names are therefore derived
+from transform rules and settings, not from `TargetKind` or the logical target
+name.
+
+Granular rebuilds are preserved by a generic output rule for build outputs. The
+rule looks up the requested output in a cached transform index, `need`s only that
+instance's inputs, and runs the selected transform runner. The transform manifest
+should be parsed through Shake caching so repeated object-file builds do not
+reparse it.
+
+Refactoring plan:
+
+1. Add `TransformManifest` and serialization for `TransformInstance`.
+2. Add target stamp paths and product manifest paths.
+3. Move transform planning from `Rules` setup into manifest-producing actions.
+4. Replace `transformInstanceRules` with generic output rules plus cached
+   transform-index lookup.
+5. Change top-level target builds to `need` target stamps, not product paths.
+6. Remove remaining assumptions that `TargetKind` determines product identity.
+
 ## Packaging and Install
 
 Packaging should not be part of target identity.
