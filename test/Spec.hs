@@ -173,12 +173,12 @@ testRecipeBuildsTransformPipelines = do
     (targetRecipeDependencies appBuild)
 
   assertEqual "library output role"
-    SharedObject
-    (fileRefRole (targetRecipeProductBase libBuild))
+    [SharedObject]
+    (map productRole (targetProductMappings libBuild))
 
   assertEqual "app output role"
-    ProgramBinary
-    (fileRefRole (targetRecipeProductBase appBuild))
+    [ProgramBinary]
+    (map productRole (targetProductMappings appBuild))
 
   assertEqual "json transform stays in graph as rule"
     [OutputGeneratedSource C ".c"]
@@ -320,9 +320,9 @@ testMapTransformPlanning = do
     xs -> fail $ "expected one link rule, got " <> show (length xs)
   let multiProductLink = linkRule
         { transformOutput = OutputTargetProducts
-            [ ProductMapping SharedObject ""
-            , ProductMapping ImportLibrary ".lib"
-            , ProductMapping Manifest ".manifest"
+            [ ProductMapping SharedObject "_build/product/libfoo.so"
+            , ProductMapping ImportLibrary "_build/product/foo.lib"
+            , ProductMapping Manifest "_build/product/foo.dll.manifest"
             ]
         }
   let multiProductTarget = reorderedLibBuild
@@ -427,6 +427,29 @@ unique :: Ord a => [a] -> [a]
 unique =
   Set.toList . Set.fromList
 
+targetProductMappings :: TargetRecipe -> [ProductMapping]
+targetProductMappings target =
+  [ mapping
+  | rule <- targetRecipeTransforms target
+  , transformAction rule == BuiltinAction BuiltinLink
+  , OutputTargetProducts products <- [transformOutput rule]
+  , mapping <- products
+  ]
+
+retargetLinkProduct :: FilePath -> [TransformRule] -> [TransformRule]
+retargetLinkProduct path =
+  map retarget
+  where
+    retarget rule
+      | transformAction rule == BuiltinAction BuiltinLink =
+          rule
+            { transformOutput = OutputTargetProducts
+                [ ProductMapping SharedObject path
+                ]
+            }
+      | otherwise =
+          rule
+
 testShakeTransformOutputRules :: IO ()
 testShakeTransformOutputRules = do
   let root = "test" </> "tmp" </> "transform-output-rules"
@@ -469,16 +492,13 @@ testShakeTransformOutputRules = do
                 }
             }
         ]
+  let libProductPath = root </> "_build" </> "product" </> "libfoo.so"
   let libBuild = libBuild0
         { targetRecipeTransforms =
-            reorderForClosureTest (targetRecipeTransforms libBuild0)
+            retargetLinkProduct libProductPath
+              (reorderForClosureTest (targetRecipeTransforms libBuild0))
         , targetRecipeSources = sourceDiscoveries
-        , targetRecipeProductBase = FileRef
-            { fileRefPath = root </> "_build" </> "product" </> "libfoo.so"
-            , fileRefRole = SharedObject
-            , fileRefLanguage = Nothing
-            , fileRefOwner = Just (TargetName "foo")
-            }
+        , targetRecipeProductDir = root </> "_build" </> "product"
         }
   let recipe = BuildRecipe
         { recipeSources = targetRecipeSources libBuild
@@ -500,7 +520,7 @@ testShakeTransformOutputRules = do
       targetBuildRules context recipe
       want [targetBuildStampPath context libBuild]
 
-  linkStamp <- readFile (fileRefPath (targetRecipeProductBase libBuild))
+  linkStamp <- readFile libProductPath
   assertEqual "generic output rules build link inputs"
     2
     (length (drop 4 (lines linkStamp)))
@@ -548,7 +568,7 @@ testShakeTransformOutputRules = do
 
   targetStamp <- readFile (targetBuildStampPath context libBuild)
   assertBool "target stamp records dynamic product"
-    (("- " <> fileRefPath (targetRecipeProductBase libBuild)) `elem` lines targetStamp)
+    (("- " <> libProductPath) `elem` lines targetStamp)
 
 contextStampRunner :: ShakeTransformRunner
 contextStampRunner context rule inputs outputs =

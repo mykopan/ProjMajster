@@ -196,7 +196,7 @@ Sketch:
 data RuleContext = RuleContext
   { ruleContextTargetName     :: TargetName
   , ruleContextTargetKind     :: TargetKind
-  , ruleContextTargetProductBase   :: FileRef
+  , ruleContextTargetProductDir :: FilePath
   , ruleContextBuildPlatform  :: Platform
   , ruleContextTargetPlatform :: Platform
   , ruleContextBuildStyle     :: BuildStyle

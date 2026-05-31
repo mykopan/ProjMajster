@@ -278,13 +278,13 @@ data TargetRecipe = TargetRecipe
   , targetRecipeSources      :: [SourceDiscovery]
   , targetRecipeTransforms   :: [TransformRule]
   , targetRecipeDependencies :: [TargetName]
-  , targetRecipeProductBase       :: FileRef
+  , targetRecipeProductDir    :: FilePath
   }
 
 data RuleContext = RuleContext
   { ruleContextTargetName     :: TargetName
   , ruleContextTargetKind     :: TargetKind
-  , ruleContextTargetProductBase   :: FileRef
+  , ruleContextTargetProductDir :: FilePath
   , ruleContextBuildPlatform  :: Platform
   , ruleContextTargetPlatform :: Platform
   , ruleContextBuildStyle     :: BuildStyle
@@ -306,12 +306,13 @@ data TransformKind
 data OutputMapping
   = OutputObject
   | OutputGeneratedSource Language FilePath
+  | OutputDefaultTargetProducts
   | OutputTargetProducts [ProductMapping]
   | OutputCustom FileRole FilePath
 
 data ProductMapping = ProductMapping
   { productRole   :: FileRole
-  , productSuffix :: FilePath
+  , productPath   :: FilePath
   }
 ```
 

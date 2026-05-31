@@ -42,13 +42,14 @@ data InputSelector
 data OutputMapping
   = OutputObject
   | OutputGeneratedSource Language FilePath
+  | OutputDefaultTargetProducts
   | OutputTargetProducts [ProductMapping]
   | OutputCustom FileRole FilePath
   deriving (Eq, Ord, Show, Read)
 
 data ProductMapping = ProductMapping
   { productRole :: FileRole
-  , productSuffix :: FilePath
+  , productPath :: FilePath
   } deriving (Eq, Ord, Show, Read)
 
 data TransformAction
