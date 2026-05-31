@@ -24,7 +24,7 @@ program name = target
   LinkProgram
   [ compileCTransform
   , compileCxxTransform
-  , linkTransform [DefaultProductMapping ProgramBinary (Text.unpack name)]
+  , linkTransform [OutputFileMapping ProgramBinary (Text.unpack name)]
   ]
 
 sharedLibrary :: Text -> TargetM () -> ProjectM ()
@@ -33,7 +33,7 @@ sharedLibrary name = target
   LinkShared
   [ compileCTransform
   , compileCxxTransform
-  , linkTransform [DefaultProductMapping SharedObject ("lib" <> Text.unpack name <> ".so")]
+  , linkTransform [OutputFileMapping SharedObject ("lib" <> Text.unpack name <> ".so")]
   ]
 
 aorpModule :: Text -> TargetM () -> ProjectM ()
@@ -42,7 +42,7 @@ aorpModule name = target
   LinkShared
   [ compileCTransform
   , compileCxxTransform
-  , linkTransform [DefaultProductMapping SharedObject (Text.unpack name <> ".so")]
+  , linkTransform [OutputFileMapping SharedObject (Text.unpack name <> ".so")]
   ]
 
 sources :: FilePath -> SourceSetM () -> TargetM ()
@@ -130,11 +130,11 @@ compileCxxTransform = TransformRule
   , transformAction = BuiltinAction BuiltinCompileCxx
   }
 
-linkTransform :: [DefaultProductMapping] -> TransformRule
-linkTransform products = TransformRule
+linkTransform :: [OutputFileMapping] -> TransformRule
+linkTransform outputs = TransformRule
   { transformName = TransformName "link"
   , transformKind = FoldTransform
   , transformInput = InputLinkInput
-  , transformOutput = OutputDefaultTargetProducts products
+  , transformOutput = OutputFiles outputs
   , transformAction = BuiltinAction BuiltinLink
   }

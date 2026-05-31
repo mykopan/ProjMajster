@@ -3,9 +3,8 @@ module ProjMajster.Core.Transform
   , TransformKind(..)
   , TransformRule(..)
   , InputSelector(..)
-  , DefaultProductMapping(..)
+  , OutputFileMapping(..)
   , OutputMapping(..)
-  , ProductMapping(..)
   , TransformAction(..)
   , BuiltinTransform(..)
   ) where
@@ -43,19 +42,12 @@ data InputSelector
 data OutputMapping
   = OutputObject
   | OutputGeneratedSource Language FilePath
-  | OutputDefaultTargetProducts [DefaultProductMapping]
-  | OutputTargetProducts [ProductMapping]
-  | OutputCustom FileRole FilePath
+  | OutputFiles [OutputFileMapping]
   deriving (Eq, Ord, Show, Read)
 
-data DefaultProductMapping = DefaultProductMapping
-  { defaultProductRole :: FileRole
-  , defaultProductName :: FilePath
-  } deriving (Eq, Ord, Show, Read)
-
-data ProductMapping = ProductMapping
-  { productRole :: FileRole
-  , productPath :: FilePath
+data OutputFileMapping = OutputFileMapping
+  { outputFileRole :: FileRole
+  , outputFilePath :: FilePath
   } deriving (Eq, Ord, Show, Read)
 
 data TransformAction

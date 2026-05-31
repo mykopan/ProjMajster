@@ -232,10 +232,9 @@ to emit one Shake rule per transform instance during the `Rules` phase.
 
 The target entrypoint should be a logical stamp such as
 `_build/inter/targets/<name>/target.done`. That stamp reads the transform
-manifest, discovers the real product paths produced by the transform closure,
-and `need`s those products dynamically. Product file names are therefore derived
-from transform rules and settings, not from a core target kind or the logical
-target name.
+manifest, selects leaf outputs from the transform closure, and `need`s those
+products dynamically. Product file names are therefore derived from transform
+rules and settings, not from a core target kind or the logical target name.
 
 Granular rebuilds are preserved by a generic output rule for build outputs. The
 rule looks up the requested output in a cached transform index, `need`s only that

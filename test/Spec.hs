@@ -170,11 +170,11 @@ testRecipeBuildsTransformPipelines = do
 
   assertEqual "library output role"
     [SharedObject]
-    (map productRole (targetProductMappings libBuild))
+    (map outputFileRole (targetOutputFiles libBuild))
 
   assertEqual "app output role"
     [ProgramBinary]
-    (map productRole (targetProductMappings appBuild))
+    (map outputFileRole (targetOutputFiles appBuild))
 
   assertEqual "json transform stays in graph as rule"
     [OutputGeneratedSource C ".c"]
@@ -315,10 +315,10 @@ testMapTransformPlanning = do
     [rule] -> pure rule
     xs -> fail $ "expected one link rule, got " <> show (length xs)
   let multiProductLink = linkRule
-        { transformOutput = OutputTargetProducts
-            [ ProductMapping SharedObject "_build/product/libfoo.so"
-            , ProductMapping ImportLibrary "_build/product/foo.lib"
-            , ProductMapping Manifest "_build/product/foo.dll.manifest"
+        { transformOutput = OutputFiles
+            [ OutputFileMapping SharedObject "_build/product/libfoo.so"
+            , OutputFileMapping ImportLibrary "_build/product/foo.lib"
+            , OutputFileMapping Manifest "_build/product/foo.dll.manifest"
             ]
         }
   let multiProductTarget = reorderedLibBuild
@@ -423,13 +423,13 @@ unique :: Ord a => [a] -> [a]
 unique =
   Set.toList . Set.fromList
 
-targetProductMappings :: TargetRecipe -> [ProductMapping]
-targetProductMappings target =
+targetOutputFiles :: TargetRecipe -> [OutputFileMapping]
+targetOutputFiles target =
   [ mapping
   | rule <- targetRecipeTransforms target
   , transformAction rule == BuiltinAction BuiltinLink
-  , OutputTargetProducts products <- [transformOutput rule]
-  , mapping <- products
+  , OutputFiles outputs <- [transformOutput rule]
+  , mapping <- outputs
   ]
 
 retargetLinkProduct :: FilePath -> [TransformRule] -> [TransformRule]
@@ -439,8 +439,8 @@ retargetLinkProduct path =
     retarget rule
       | transformAction rule == BuiltinAction BuiltinLink =
           rule
-            { transformOutput = OutputTargetProducts
-                [ ProductMapping SharedObject path
+            { transformOutput = OutputFiles
+                [ OutputFileMapping SharedObject path
                 ]
             }
       | otherwise =

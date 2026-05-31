@@ -29,7 +29,7 @@ import Data.Maybe (mapMaybe)
 import qualified Data.Text as Text
 import qualified Data.Set as Set
 import Development.Shake
-import System.FilePath ((</>), (<.>), dropExtension, splitDirectories, takeDirectory)
+import System.FilePath ((</>), (<.>), dropExtension, isRelative, splitDirectories, takeDirectory)
 import qualified System.Directory as Directory
 import Text.Read (readMaybe)
 
@@ -129,12 +129,21 @@ transformManifestIndex manifest =
     ]
 
 transformManifestProducts :: TransformManifest -> [FileRef]
-transformManifestProducts manifest =
-  [ output
-  | instance_ <- transformManifestInstances manifest
-  , transformKind (transformInstanceRule instance_) == FoldTransform
-  , output <- transformInstanceOutputs instance_
-  ]
+transformManifestProducts manifest = leafOutputs
+  where
+    consumedPaths =
+      Set.fromList
+        [ fileRefPath input
+        | instance_ <- transformManifestInstances manifest
+        , input <- transformInstanceInputs instance_
+        ]
+
+    leafOutputs =
+      [ output
+      | instance_ <- transformManifestInstances manifest
+      , output <- transformInstanceOutputs instance_
+      , fileRefPath output `Set.notMember` consumedPaths
+      ]
 
 transformManifestRules :: BuildContext -> BuildRecipe -> Rules ()
 transformManifestRules context recipe =
@@ -441,46 +450,33 @@ mapTransformOutput context target rule input =
         , fileRefLanguage = Just language
         , fileRefOwner = Just (targetRecipeName target)
         }
-    OutputCustom role suffix ->
-      FileRef
-        { fileRefPath =
-            targetInterDir context (targetRecipeName target)
-              </> "custom"
-              </> (dropExtension (fileRefPath input) <> suffix)
-        , fileRefRole = role
-        , fileRefLanguage = Nothing
-        , fileRefOwner = Just (targetRecipeName target)
-        }
-    OutputDefaultTargetProducts _ ->
-      error "OutputDefaultTargetProducts must be resolved before transform planning"
-    OutputTargetProducts [] ->
-      error "OutputTargetProducts requires at least one product"
-    OutputTargetProducts (productMapping : _) ->
-      productOutput target productMapping
+    OutputFiles [] ->
+      error "OutputFiles requires at least one output file"
+    OutputFiles (outputMapping : _) ->
+      outputFile target outputMapping
 
 foldTransformOutputs :: TargetRecipe -> TransformRule -> [FileRef]
 foldTransformOutputs target rule =
   case transformOutput rule of
-    OutputTargetProducts [] ->
-      []
-    OutputTargetProducts products ->
-      map (productOutput target) products
-    OutputDefaultTargetProducts _ ->
-      []
-    OutputCustom role suffix ->
-      [targetRelativeOutput target role suffix Nothing]
+    OutputFiles outputs ->
+      map (outputFile target) outputs
     OutputObject ->
       [targetRelativeOutput target ObjectFile "output.o" Nothing]
     OutputGeneratedSource language suffix ->
       [targetRelativeOutput target GeneratedSource suffix (Just language)]
 
-productOutput :: TargetRecipe -> ProductMapping -> FileRef
-productOutput target productMapping = FileRef
-  { fileRefPath = productPath productMapping
-  , fileRefRole = productRole productMapping
+outputFile :: TargetRecipe -> OutputFileMapping -> FileRef
+outputFile target outputMapping = FileRef
+  { fileRefPath = resolveOutputFilePath target (outputFilePath outputMapping)
+  , fileRefRole = outputFileRole outputMapping
   , fileRefLanguage = Nothing
   , fileRefOwner = Just (targetRecipeName target)
   }
+
+resolveOutputFilePath :: TargetRecipe -> FilePath -> FilePath
+resolveOutputFilePath target path
+  | isRelative path && takeDirectory path == "." = targetRecipeProductDir target </> path
+  | otherwise = path
 
 targetRelativeOutput :: TargetRecipe -> FileRole -> FilePath -> Maybe Language -> FileRef
 targetRelativeOutput target role suffix language = FileRef

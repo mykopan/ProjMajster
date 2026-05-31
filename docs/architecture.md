@@ -304,18 +304,11 @@ data TransformKind
 data OutputMapping
   = OutputObject
   | OutputGeneratedSource Language FilePath
-  | OutputDefaultTargetProducts [DefaultProductMapping]
-  | OutputTargetProducts [ProductMapping]
-  | OutputCustom FileRole FilePath
+  | OutputFiles [OutputFileMapping]
 
-data DefaultProductMapping = DefaultProductMapping
-  { defaultProductRole :: FileRole
-  , defaultProductName :: FilePath
-  }
-
-data ProductMapping = ProductMapping
-  { productRole   :: FileRole
-  , productPath   :: FilePath
+data OutputFileMapping = OutputFileMapping
+  { outputFileRole :: FileRole
+  , outputFilePath :: FilePath
   }
 ```
 
@@ -333,9 +326,11 @@ compile-cxx: MapTransform  C++ source -> object file
 link       : FoldTransform object files + dependency outputs -> target binary
 ```
 
-Fold transforms may produce multiple target products. For example, a shared
-library rule on Windows can model runtime, development, and manifest outputs as
-one transform instance that produces `.dll`, `.lib`, and `.manifest` products.
+Transforms may produce one or more concrete output files. The transform rule
+does not decide whether those files are target products or intermediate files;
+that is derived from the planned closure. Outputs that are produced by the
+closure and not consumed by another transform instance are considered target
+products by the default selector.
 
 Shake backend executes planned transform instances through a runner registry:
 
@@ -383,8 +378,8 @@ _build/**                     -- generic output rule for planned transform outpu
 
 `target.done` is the user-facing build entrypoint for a logical target. It does
 not assume product paths are known before source discovery. Its action reads the
-transform manifest, finds the final target products, and `need`s those product
-paths.
+transform manifest, selects leaf outputs from the closure as target products,
+and `need`s those product paths.
 
 The generic output rule preserves Shake granularity. When a generated source,
 object file, import library, manifest, or final product is needed, it:
