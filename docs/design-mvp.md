@@ -260,8 +260,7 @@ Refactoring plan:
 1. Add `TransformManifest` and serialization for `TransformInstance`.
 2. Add target stamp paths and product manifest paths.
 3. Move transform planning from `Rules` setup into manifest-producing actions.
-4. Replace `transformInstanceRules` with generic output rules plus cached
-   transform-index lookup.
+4. Use generic output rules plus cached transform-index lookup.
 5. Change top-level target builds to `need` target stamps, not product paths.
 6. Remove remaining assumptions that `TargetKind` determines product identity.
 

@@ -19,8 +19,6 @@ module ProjMajster.Backend.Shake.Transform
   , transformManifestProducts
   , transformManifestRules
   , transformOutputRulesWith
-  , transformInstanceRules
-  , transformInstanceRulesWith
   , transformRunnerRegistry
   , writeTransformManifest
   ) where
@@ -230,24 +228,6 @@ targetBuildStamp target products = unlines $
 encodeTransformManifest :: TransformManifest -> String
 encodeTransformManifest manifest =
   unlines (map show (transformManifestInstances manifest))
-
-transformInstanceRules :: [TransformInstance] -> Rules ()
-transformInstanceRules =
-  transformInstanceRulesWith defaultTransformRunnerRegistry
-
-transformInstanceRulesWith :: TransformRunnerRegistry -> [TransformInstance] -> Rules ()
-transformInstanceRulesWith registry =
-  mapM_ (transformInstanceBuildRules registry)
-
-transformInstanceBuildRules :: TransformRunnerRegistry -> TransformInstance -> Rules ()
-transformInstanceBuildRules registry instance_ =
-  case transformInstanceOutputs instance_ of
-    [] ->
-      pure ()
-    outputs ->
-      map fileRefPath outputs &%> \_ -> do
-        need (map fileRefPath (transformInstanceInputs instance_))
-        runTransformInstance registry instance_
 
 runTransformInstance :: TransformRunnerRegistry -> TransformInstance -> Action ()
 runTransformInstance registry instance_ =

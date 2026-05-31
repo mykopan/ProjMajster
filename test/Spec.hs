@@ -21,7 +21,6 @@ main = do
   testRecipeBuildsTransformPipelines
   testShakeSourceDiscovery
   testMapTransformPlanning
-  testShakeTransformInstanceRules
   testShakeTransformOutputRules
   testDuplicateTargetsFail
   testUnknownBuildStyleFails
@@ -428,172 +427,6 @@ unique :: Ord a => [a] -> [a]
 unique =
   Set.toList . Set.fromList
 
-testShakeTransformInstanceRules :: IO ()
-testShakeTransformInstanceRules = do
-  let root = "test" </> "tmp" </> "transform-rules"
-  Directory.removePathForcibly root `catchIO` \_ -> pure ()
-  Directory.createDirectoryIfMissing True (root </> "src" </> "foo")
-  Directory.createDirectoryIfMissing True (root </> "_build" </> "product")
-  writeFile (root </> "src" </> "foo" </> "config.json") "{}"
-  writeFile (root </> "src" </> "foo" </> "main.c") "int main_c;"
-  writeFile (root </> "src" </> "foo" </> "main.cpp") "int main_cpp;"
-  writeFile (root </> "_build" </> "product" </> "libdep.so") "dep"
-
-  plan <- assertRight "resolve release project" $
-    resolveProject releaseContext demoProject
-  let graph = lowerBuildPlan plan
-
-  libBuild0 <- case recipeTargets graph of
-    libTarget : _ -> pure libTarget
-    [] -> fail "expected at least one target recipe"
-
-  let context = releaseContext
-        { contextBuildDirs = BuildDirs
-            { buildRootDir = root </> "_build"
-            , buildInterDir = root </> "_build" </> "inter"
-            , buildProductDir = root </> "_build" </> "product"
-            , buildDistDir = root </> "_build" </> "dist"
-            }
-        }
-  let sourceDiscoveries =
-        [ SourceDiscovery
-            { sourceDiscoveryOwner = TargetName "foo"
-            , sourceDiscoveryPattern = SourcePattern
-                { sourcePatternBaseDir = root </> "src" </> "foo"
-                , sourcePatternGlob = "**/*.json"
-                , sourcePatternLanguage = CustomLanguage "json"
-                }
-            }
-        , SourceDiscovery
-            { sourceDiscoveryOwner = TargetName "foo"
-            , sourceDiscoveryPattern = SourcePattern
-                { sourcePatternBaseDir = root </> "src" </> "foo"
-                , sourcePatternGlob = "**/*.c"
-                , sourcePatternLanguage = C
-                }
-            }
-        , SourceDiscovery
-            { sourceDiscoveryOwner = TargetName "foo"
-            , sourceDiscoveryPattern = SourcePattern
-                { sourcePatternBaseDir = root </> "src" </> "foo"
-                , sourcePatternGlob = "**/*.cpp"
-                , sourcePatternLanguage = Cxx
-                }
-            }
-        ]
-  let libBuild = libBuild0
-        { targetRecipeTransforms =
-            reorderForClosureTest (targetRecipeTransforms libBuild0)
-        , targetRecipeSources = sourceDiscoveries
-        , targetRecipeProductBase = FileRef
-            { fileRefPath = root </> "_build" </> "product" </> "libfoo.so"
-            , fileRefRole = SharedObject
-            , fileRefLanguage = Nothing
-            , fileRefOwner = Just (TargetName "foo")
-            }
-        }
-  let dependencyOutput = FileRef
-        { fileRefPath = root </> "_build" </> "product" </> "libdep.so"
-        , fileRefRole = SharedObject
-        , fileRefLanguage = Nothing
-        , fileRefOwner = Just (TargetName "dep")
-        }
-  let discovered =
-        [ DiscoveredSource
-            { discoveredSourceOwner = TargetName "foo"
-            , discoveredSourceBaseDir = root </> "src" </> "foo"
-            , discoveredSourcePath = "config.json"
-            , discoveredSourceLanguage = CustomLanguage "json"
-            }
-        , DiscoveredSource
-            { discoveredSourceOwner = TargetName "foo"
-            , discoveredSourceBaseDir = root </> "src" </> "foo"
-            , discoveredSourcePath = "main.c"
-            , discoveredSourceLanguage = C
-            }
-        , DiscoveredSource
-            { discoveredSourceOwner = TargetName "foo"
-            , discoveredSourceBaseDir = root </> "src" </> "foo"
-            , discoveredSourcePath = "main.cpp"
-            , discoveredSourceLanguage = Cxx
-            }
-        ]
-
-  let instances =
-        planTargetTransforms context libBuild discovered [dependencyOutput]
-  let registry =
-        transformRunnerRegistry
-          ( builtinCommandTransformRunners recordingCommandRunner <>
-            [(CustomAction "json-to-c", contextStampRunner)]
-          )
-  let recipe = BuildRecipe
-        { recipeSources = targetRecipeSources libBuild
-        , recipeTargets = [libBuild]
-        }
-
-  shake shakeOptions
-    { shakeFiles = root </> "_shake"
-    , shakeVerbosity = Silent
-    } $ do
-      sourceDiscoveryRules context recipe
-      transformManifestRules context recipe
-      transformInstanceRulesWith registry instances
-      want
-        [ transformManifestPath context libBuild
-        , fileRefPath (targetRecipeProductBase libBuild)
-        ]
-
-  linkStamp <- readFile (fileRefPath (targetRecipeProductBase libBuild))
-  let linkInputs = drop 4 (lines linkStamp)
-
-  assertEqual "link stamp input count"
-    4
-    (length linkInputs)
-
-  assertBool "link stamp includes dependency output" $
-    ("- " <> fileRefPath dependencyOutput) `elem` linkInputs
-
-  plannedManifest <- parseTransformManifestContent <$>
-    readFile (transformManifestPath context libBuild)
-  assertEqual "transform manifest rule plans products"
-    [SharedObject]
-    (map fileRefRole (transformManifestProducts plannedManifest))
-
-  generatedSource <- case
-      [ output
-      | instance_ <- instances
-      , transformAction (transformInstanceRule instance_) == CustomAction "json-to-c"
-      , output <- transformInstanceOutputs instance_
-      ] of
-    [output] -> pure output
-    xs -> fail $ "expected one generated source, got " <> show (length xs)
-
-  generatedContent <- readFile (fileRefPath generatedSource)
-  assertBool "custom runner receives rule context target" $
-    "target: foo" `elem` lines generatedContent
-  assertBool "custom runner receives rule context build style" $
-    "style: release" `elem` lines generatedContent
-
-  let cSource = root </> "src" </> "foo" </> "main.c"
-  cObject <- case
-      [ output
-      | instance_ <- instances
-      , transformAction (transformInstanceRule instance_) == BuiltinAction BuiltinCompileC
-      , input <- transformInstanceInputs instance_
-      , fileRefPath input == cSource
-      , output <- transformInstanceOutputs instance_
-      ] of
-    [output] -> pure output
-    xs -> fail $ "expected one C object output, got " <> show (length xs)
-
-  cObjectContent <- readFile (fileRefPath cObject)
-  assertEqual "compile-c command executable"
-    "executable: cc"
-    (head (lines cObjectContent))
-  assertBool "compile-c command includes input and output arguments" $
-    ("arguments: -c " <> cSource <> " -o " <> fileRefPath cObject)
-      `elem` lines cObjectContent
-
 testShakeTransformOutputRules :: IO ()
 testShakeTransformOutputRules = do
   let root = "test" </> "tmp" </> "transform-output-rules"
@@ -671,6 +504,48 @@ testShakeTransformOutputRules = do
   assertEqual "generic output rules build link inputs"
     2
     (length (drop 4 (lines linkStamp)))
+
+  plannedManifest <- parseTransformManifestContent <$>
+    readFile (transformManifestPath context libBuild)
+  assertEqual "transform manifest rule plans products"
+    [SharedObject]
+    (map fileRefRole (transformManifestProducts plannedManifest))
+
+  generatedSource <- case
+      [ output
+      | instance_ <- transformManifestInstances plannedManifest
+      , transformAction (transformInstanceRule instance_) == CustomAction "json-to-c"
+      , output <- transformInstanceOutputs instance_
+      ] of
+    [output] -> pure output
+    xs -> fail $ "expected one generated source, got " <> show (length xs)
+
+  generatedContent <- readFile (fileRefPath generatedSource)
+  assertBool "custom runner receives rule context target" $
+    "target: foo" `elem` lines generatedContent
+  assertBool "custom runner receives rule context build style" $
+    "style: release" `elem` lines generatedContent
+
+  let cSource = root </> "src" </> "foo" </> "main.c"
+  cObject <- case
+      [ output
+      | instance_ <- transformManifestInstances plannedManifest
+      , transformAction (transformInstanceRule instance_) == BuiltinAction BuiltinCompileC
+      , input <- transformInstanceInputs instance_
+      , fileRefPath input == cSource
+      , output <- transformInstanceOutputs instance_
+      ] of
+    [output] -> pure output
+    xs -> fail $ "expected one C object output, got " <> show (length xs)
+
+  cObjectContent <- readFile (fileRefPath cObject)
+  assertEqual "compile-c command executable"
+    "executable: cc"
+    (head (lines cObjectContent))
+  assertBool "compile-c command includes input and output arguments" $
+    ("arguments: -c " <> cSource <> " -o " <> fileRefPath cObject)
+      `elem` lines cObjectContent
+
   targetStamp <- readFile (targetBuildStampPath context libBuild)
   assertBool "target stamp records dynamic product"
     (("- " <> fileRefPath (targetRecipeProductBase libBuild)) `elem` lines targetStamp)

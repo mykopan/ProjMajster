@@ -26,8 +26,6 @@ module ProjMajster.Backend.Shake
   , transformManifestProducts
   , transformManifestRules
   , transformOutputRulesWith
-  , transformInstanceRules
-  , transformInstanceRulesWith
   , transformRunnerRegistry
   , writeTransformManifest
   ) where
